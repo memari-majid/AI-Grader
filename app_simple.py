@@ -18,6 +18,9 @@ from data.synthetic_rubric_generator import generate_assignment_package
 from services.code_analysis_service import analyze_python_code
 from services.openai_service import OpenAIService
 from utils.storage import save_evaluation
+from components.chatbot import show_chatbot_sidebar, show_full_chat
+from components.auth import show_login_form, check_authentication, show_user_info
+from database.db_manager import db
 
 # Page config
 st.set_page_config(
@@ -30,17 +33,39 @@ st.set_page_config(
 openai_service = OpenAIService()
 
 def main():
-    """Main app - simple single page"""
+    """Main app - secure single page with integrated chatbot"""
+    
+    # Check authentication first
+    if not check_authentication():
+        show_login_form()
+        return
+    
+    # Add user info and chatbot to sidebar
+    show_user_info()
+    show_chatbot_sidebar()
     
     # Header
-    st.title("💻 CS AI Grader")
-    st.caption("Utah Valley University - Computer Science Department")
+    col1, col2 = st.columns([3, 1])
+    with col1:
+        st.title("💻 CS AI Grader")
+        st.caption("Utah Valley University - Computer Science Department")
+        user = st.session_state.get('user', {})
+        st.caption(f"Welcome, {user.get('username', 'User')} ({user.get('role', 'user').title()})")
+    with col2:
+        if st.button("💬 Toggle Chat"):
+            st.session_state.show_full_chat = not st.session_state.get('show_full_chat', False)
+            st.rerun()
     
     # Initialize session state
     if 'assignment_data' not in st.session_state:
         st.session_state.assignment_data = None
     if 'grading_complete' not in st.session_state:
         st.session_state.grading_complete = False
+    
+    # Show full chat if toggled
+    if st.session_state.get('show_full_chat', False):
+        show_full_chat()
+        st.markdown("---")
     
     # Main workflow
     if not st.session_state.assignment_data:
@@ -369,28 +394,68 @@ def show_results():
             st.rerun()
 
 def save_grading_data(assignment_data, scores, justifications, ai_feedback):
-    """Save grading data securely"""
+    """Save grading data securely to database"""
     
-    evaluation = {
-        'id': str(uuid.uuid4()),
-        'timestamp': datetime.now().isoformat(),
-        'course': assignment_data['course'],
-        'assignment_name': assignment_data['assignment_name'],
-        'grader_name': assignment_data.get('grader_name', 'Anonymous'),
-        'student_id_hash': hash(assignment_data.get('student_id', 'anonymous')),  # Hash for privacy
-        'assignment_prompt': assignment_data['prompt'],
-        'code_text': assignment_data['code'],
-        'rubric_name': assignment_data['rubric']['name'],
-        'ai_scores': ai_feedback.get('scores', {}),
-        'ai_feedback': ai_feedback.get('feedback', {}),
-        'final_scores': scores,
-        'final_justifications': justifications,
-        'total_score': sum(scores.values()),
-        'is_synthetic': assignment_data.get('is_synthetic', False),
-        'rubric_type': 'cs_programming'
-    }
+    user = st.session_state.get('user', {})
     
-    save_evaluation(evaluation)
+    # Save to new database system
+    try:
+        session_id = db.save_grading_session(
+            assignment_id=assignment_data.get('assignment_id', 'synthetic'),
+            grader_id=user.get('id', 0),
+            student_code=assignment_data['code'],
+            ai_results={
+                'scores': ai_feedback.get('scores', {}),
+                'feedback': ai_feedback.get('feedback', {}),
+                'metrics': analyze_python_code(assignment_data['code'])
+            },
+            final_results={
+                'scores': scores,
+                'feedback': justifications
+            },
+            student_identifier=assignment_data.get('student_id', 'anonymous')
+        )
+        
+        # Also save to legacy system for compatibility
+        evaluation = {
+            'id': session_id,
+            'timestamp': datetime.now().isoformat(),
+            'course': assignment_data['course'],
+            'assignment_name': assignment_data['assignment_name'],
+            'grader_name': user.get('username', 'Anonymous'),
+            'student_id_hash': hash(assignment_data.get('student_id', 'anonymous')),
+            'assignment_prompt': assignment_data['prompt'],
+            'code_text': assignment_data['code'],
+            'rubric_name': assignment_data['rubric']['name'],
+            'ai_scores': ai_feedback.get('scores', {}),
+            'ai_feedback': ai_feedback.get('feedback', {}),
+            'final_scores': scores,
+            'final_justifications': justifications,
+            'total_score': sum(scores.values()),
+            'is_synthetic': assignment_data.get('is_synthetic', False),
+            'rubric_type': 'cs_programming',
+            'status': 'completed'
+        }
+        
+        save_evaluation(evaluation)
+        
+    except Exception as e:
+        st.error(f"Failed to save to database: {e}")
+        # Fallback to legacy storage
+        evaluation = {
+            'id': str(uuid.uuid4()),
+            'timestamp': datetime.now().isoformat(),
+            'course': assignment_data['course'],
+            'assignment_name': assignment_data['assignment_name'],
+            'grader_name': user.get('username', 'Anonymous'),
+            'final_scores': scores,
+            'final_justifications': justifications,
+            'total_score': sum(scores.values()),
+            'is_synthetic': assignment_data.get('is_synthetic', False),
+            'rubric_type': 'cs_programming',
+            'status': 'completed'
+        }
+        save_evaluation(evaluation)
 
 def show_research_summary():
     """Show research data summary"""
