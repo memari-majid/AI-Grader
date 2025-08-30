@@ -22,6 +22,7 @@ from components.chatbot import show_chatbot_sidebar, show_full_chat
 from components.auth import show_login_form, check_authentication, show_user_info
 from database.db_manager import db
 from styles.uvu_theme import apply_uvu_theme, create_uvu_header, create_uvu_footer
+from services.analytics_service import analytics
 
 # Page config
 st.set_page_config(
@@ -92,6 +93,15 @@ def show_assignment_setup():
     with col1:
         st.markdown("### Option 1: Quick Test with Synthetic Data")
         if st.button("🎲 Generate Test Assignment", type="primary", use_container_width=True):
+            # Log feature usage
+            user = st.session_state.get('user', {})
+            analytics.log_usage_metric(
+                user_id=user.get('id', 0),
+                feature='quick_test',
+                action='clicked',
+                metadata={'source': 'main_page'}
+            )
+            
             # Generate complete synthetic package
             package = generate_assignment_package("intermediate")
             
@@ -103,6 +113,7 @@ def show_assignment_setup():
                 'rubric': package['rubric'],
                 'is_synthetic': True
             }
+            st.session_state.grading_start_time = datetime.now()
             st.rerun()
     
     with col2:
@@ -404,9 +415,56 @@ def show_results():
     create_uvu_footer()
 
 def save_grading_data(assignment_data, scores, justifications, ai_feedback):
-    """Save grading data securely to database"""
+    """Save grading data securely to database and log for analytics"""
     
     user = st.session_state.get('user', {})
+    grading_start_time = st.session_state.get('grading_start_time', datetime.now())
+    
+    # Calculate grading metrics
+    total_score = sum(scores.values())
+    max_score = len(scores) * 3
+    percentage = (total_score / max_score) * 100 if max_score > 0 else 0
+    time_taken = (datetime.now() - grading_start_time).total_seconds()
+    
+    # Log analytics for grading session
+    try:
+        code_metrics = analyze_python_code(assignment_data['code'])
+        
+        analytics_data = {
+            'course': assignment_data['course'],
+            'assignment_name': assignment_data['assignment_name'],
+            'assignment_type': 'synthetic' if assignment_data.get('is_synthetic') else 'real',
+            'is_synthetic': assignment_data.get('is_synthetic', False),
+            'rubric': assignment_data.get('rubric', {}),
+            'code_metrics': code_metrics,
+            'total_score': total_score,
+            'max_score': max_score,
+            'percentage': percentage,
+            'score_distribution': scores,
+            'time_taken': time_taken,
+            'ai_calls_made': st.session_state.get('ai_calls_made', 1),
+            'feedback': justifications,
+            'user_actions': st.session_state.get('user_actions', [])
+        }
+        
+        analytics.log_grading_session(
+            user_id=user.get('id', 0),
+            grading_data=analytics_data
+        )
+        
+        # Log feature usage
+        analytics.log_usage_metric(
+            user_id=user.get('id', 0),
+            feature='grading_completed',
+            action='completed',
+            metadata={
+                'score_percentage': percentage,
+                'time_taken': time_taken,
+                'is_synthetic': assignment_data.get('is_synthetic', False)
+            }
+        )
+    except Exception as e:
+        print(f"Analytics logging error: {e}")
     
     # Save to new database system
     try:
@@ -417,7 +475,7 @@ def save_grading_data(assignment_data, scores, justifications, ai_feedback):
             ai_results={
                 'scores': ai_feedback.get('scores', {}),
                 'feedback': ai_feedback.get('feedback', {}),
-                'metrics': analyze_python_code(assignment_data['code'])
+                'metrics': code_metrics
             },
             final_results={
                 'scores': scores,

@@ -9,6 +9,7 @@ from typing import List, Dict, Any
 import json
 
 from services.openai_service import OpenAIService
+from services.analytics_service import analytics
 
 
 def show_chatbot_sidebar():
@@ -156,24 +157,23 @@ def send_chat_message(message: str, use_context: bool, openai_service: OpenAISer
     if context_parts:
         system_prompt += f"\n\nCurrent Context:\n{chr(10).join(context_parts)}"
     
-    # Add to chat history
-    st.session_state.chat_history.append({
-        'role': 'user',
-        'content': message,
-        'timestamp': datetime.now().isoformat()
-    })
-    
     try:
         # Get AI response
         messages = [{'role': 'system', 'content': system_prompt}]
         
-        # Add recent chat history for context (exclude system message)
-        for msg in st.session_state.chat_history[-5:]:  # Last 5 messages
+        # Add recent chat history for context
+        for msg in st.session_state.chat_history[-4:]:  # Last 4 messages
             if msg['role'] in ['user', 'assistant']:
                 messages.append({
                     'role': msg['role'],
                     'content': msg['content']
                 })
+        
+        # Add current user message
+        messages.append({
+            'role': 'user',
+            'content': message
+        })
         
         response = openai_service.client.chat.completions.create(
             model=openai_service.model,
@@ -192,12 +192,45 @@ def send_chat_message(message: str, use_context: bool, openai_service: OpenAISer
         else:
             ai_response = "Sorry, I received an empty response. Please try again."
         
+        # Add user message to history first
+        st.session_state.chat_history.append({
+            'role': 'user',
+            'content': message,
+            'timestamp': datetime.now().isoformat()
+        })
+        
         # Add AI response to history
         st.session_state.chat_history.append({
             'role': 'assistant',
             'content': ai_response,
             'timestamp': datetime.now().isoformat()
         })
+        
+        # Log chat interaction for analytics
+        try:
+            user = st.session_state.get('user', {})
+            user_id = user.get('id', 0)
+            
+            # Build context for analytics
+            analytics_context = {
+                'user_role': user.get('role', 'unknown'),
+                'course': st.session_state.get('assignment_data', {}).get('course'),
+                'assignment_type': st.session_state.get('assignment_data', {}).get('assignment_type'),
+                'has_document': 'uploaded_doc' in st.session_state.chat_context,
+                'document_type': st.session_state.chat_context.get('uploaded_doc', {}).get('type'),
+                'grading_context': use_context and bool(st.session_state.get('assignment_data'))
+            }
+            
+            # Log to analytics
+            analytics.log_chat_interaction(
+                user_id=user_id,
+                conversation=st.session_state.chat_history,
+                context=analytics_context,
+                model_used=openai_service.model
+            )
+        except Exception as e:
+            # Don't let analytics errors affect the user experience
+            print(f"Analytics logging error: {e}")
         
         st.sidebar.success("✅ AI responded!")
         return True

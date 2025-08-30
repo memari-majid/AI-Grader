@@ -416,6 +416,98 @@ class DatabaseManager:
             'anonymized': anonymize,
             'sessions': sessions_data
         }
+    
+    # Analytics Methods
+    def log_analytics_event(self, event_type: str, user_id: Optional[int], 
+                          event_data: Dict[str, Any], timestamp: datetime = None,
+                          session_id: str = None) -> None:
+        """Log an analytics event"""
+        
+        if timestamp is None:
+            timestamp = datetime.now()
+        
+        with self.get_connection() as conn:
+            # First ensure analytics_events table exists
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS analytics_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    user_id INTEGER,
+                    event_data TEXT NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    session_id TEXT,
+                    FOREIGN KEY (user_id) REFERENCES users (id)
+                )
+            """)
+            
+            # Create indexes if they don't exist
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_analytics_timestamp 
+                ON analytics_events(timestamp)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_analytics_user 
+                ON analytics_events(user_id)
+            """)
+            conn.execute("""
+                CREATE INDEX IF NOT EXISTS idx_analytics_type 
+                ON analytics_events(event_type)
+            """)
+            
+            # Insert event
+            conn.execute("""
+                INSERT INTO analytics_events (event_type, user_id, event_data, timestamp, session_id)
+                VALUES (?, ?, ?, ?, ?)
+            """, (event_type, user_id, json.dumps(event_data), timestamp, session_id))
+            conn.commit()
+    
+    def get_analytics_events(self, start_date: datetime, end_date: datetime,
+                           event_type: str = None, user_id: int = None) -> List[Dict[str, Any]]:
+        """Get analytics events within date range"""
+        
+        with self.get_connection() as conn:
+            # Ensure table exists
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS analytics_events (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    event_type TEXT NOT NULL,
+                    user_id INTEGER,
+                    event_data TEXT NOT NULL,
+                    timestamp DATETIME DEFAULT CURRENT_TIMESTAMP,
+                    session_id TEXT,
+                    FOREIGN KEY (user_id) REFERENCES users (id)
+                )
+            """)
+            
+            query = """
+                SELECT * FROM analytics_events 
+                WHERE timestamp BETWEEN ? AND ?
+            """
+            params = [start_date, end_date]
+            
+            if event_type:
+                query += " AND event_type = ?"
+                params.append(event_type)
+            
+            if user_id:
+                query += " AND user_id = ?"
+                params.append(user_id)
+            
+            query += " ORDER BY timestamp DESC"
+            
+            events = conn.execute(query, params).fetchall()
+        
+        # Parse JSON event data
+        result = []
+        for event in events:
+            event_dict = dict(event)
+            try:
+                event_dict['event_data'] = json.loads(event_dict['event_data'])
+            except:
+                event_dict['event_data'] = {}
+            result.append(event_dict)
+        
+        return result
 
 
 # Global database instance
