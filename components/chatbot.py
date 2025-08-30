@@ -92,13 +92,20 @@ def show_chatbot_sidebar():
         with col1:
             if st.button("💬 Send", use_container_width=True):
                 if user_message.strip():
-                    send_chat_message(user_message, use_context, openai_service)
-                    st.rerun()
+                    with st.spinner("🤖 AI thinking..."):
+                        success = send_chat_message(user_message, use_context, openai_service)
+                        if success:
+                            # Clear input by resetting key
+                            st.session_state.chat_input = ""
+                        st.rerun()
+                else:
+                    st.sidebar.error("Please enter a message")
         
         with col2:
             if st.button("🗑️ Clear", use_container_width=True):
                 st.session_state.chat_history = []
                 st.session_state.chat_context = {}
+                st.sidebar.success("Chat cleared!")
                 st.rerun()
     
     # Show full chat if requested
@@ -107,8 +114,12 @@ def show_chatbot_sidebar():
         st.rerun()
 
 
-def send_chat_message(message: str, use_context: bool, openai_service: OpenAIService):
-    """Send message to AI and get response"""
+def send_chat_message(message: str, use_context: bool, openai_service: OpenAIService) -> bool:
+    """Send message to AI and get response. Returns True if successful."""
+    
+    if not openai_service.is_enabled():
+        st.sidebar.error("🔑 OpenAI API key required")
+        return False
     
     # Build context
     context_parts = []
@@ -160,17 +171,19 @@ def send_chat_message(message: str, use_context: bool, openai_service: OpenAISer
         # Get AI response
         messages = [{'role': 'system', 'content': system_prompt}]
         
-        # Add recent chat history for context
-        for msg in st.session_state.chat_history[-6:]:  # Last 6 messages
-            messages.append({
-                'role': msg['role'],
-                'content': msg['content']
-            })
+        # Add recent chat history for context (exclude system message)
+        for msg in st.session_state.chat_history[-5:]:  # Last 5 messages
+            if msg['role'] in ['user', 'assistant']:
+                messages.append({
+                    'role': msg['role'],
+                    'content': msg['content']
+                })
         
         response = openai_service.client.chat.completions.create(
             model=openai_service.model,
             messages=messages,
-            max_completion_tokens=500
+            max_completion_tokens=500,
+            temperature=0.7
         )
         
         ai_response = response.choices[0].message.content.strip()
@@ -182,12 +195,18 @@ def send_chat_message(message: str, use_context: bool, openai_service: OpenAISer
             'timestamp': datetime.now().isoformat()
         })
         
+        st.sidebar.success("✅ AI responded!")
+        return True
+        
     except Exception as e:
+        error_msg = f"Sorry, I encountered an error: {str(e)}"
         st.session_state.chat_history.append({
             'role': 'assistant',
-            'content': f"Sorry, I encountered an error: {e}",
+            'content': error_msg,
             'timestamp': datetime.now().isoformat()
         })
+        st.sidebar.error(f"❌ Chat error: {str(e)}")
+        return False
 
 
 def show_full_chat():

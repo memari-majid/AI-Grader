@@ -22,6 +22,12 @@ streamlit.log
 # Data storage (will be recreated)
 data_storage/
 
+# Database files (contain sensitive user and student data)
+database/*.db
+database/*.db-*
+*.sqlite
+*.sqlite3
+
 # Backup files
 *_backup.py
 *.backup
@@ -36,8 +42,10 @@ data_storage/
 .DS_Store
 Thumbs.db
 
-# Logs
+# Logs and process files
 *.log
+logs/
+*.pid
 
 # Virtual environments (specific)
 ai-ster-env/
