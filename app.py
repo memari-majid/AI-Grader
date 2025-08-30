@@ -28,9 +28,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Import our modules
-from data.rubrics import get_field_evaluation_items, get_ster_items, get_professional_dispositions, filter_items_by_evaluator_role
 from data.rubric_loader import parse_rubric_json, rubric_to_items, get_sample_cs_rubric
-from data.synthetic import generate_synthetic_evaluations
 from services.openai_service import OpenAIService
 from services.code_analysis_service import analyze_python_code
 from services.pdf_service import PDFService
@@ -69,11 +67,9 @@ def main():
     with st.sidebar:
         st.image("logo.png", width=200, caption="CS AI Grader")
         
-        page = st.selectbox(
-            "Navigation",
-            ["📝 Grade Assignment", "📊 Dashboard", "🧪 Test Data", "⚙️ Settings"],
-            index=0  # Explicitly set the default to first item
-        )
+        # Single page app - no navigation needed
+        st.markdown("### 🎓 UVU Computer Science")
+        st.caption("AI-Assisted Assignment Grading")
         
         # Quick test button in sidebar
         st.markdown("---")
@@ -132,95 +128,104 @@ def main():
         
         # Quick stats
         evaluations = load_evaluations()
-        st.metric("Total Evaluations", len(evaluations))
-        st.metric("Completed", len([e for e in evaluations if e.get('status') == 'completed']))
-        st.metric("Drafts", len([e for e in evaluations if e.get('status') == 'draft']))
+        cs_evaluations = [e for e in evaluations if e.get('rubric_type') == 'cs_programming']
+        st.metric("CS Assignments", len(cs_evaluations))
+        st.metric("Completed", len([e for e in cs_evaluations if e.get('status') == 'completed']))
         
-        # Lesson plan submission rate
-        if evaluations:
-            lesson_plan_count = len([e for e in evaluations if e.get('lesson_plan_provided', False)])
-            submission_rate = (lesson_plan_count / len(evaluations)) * 100
-            st.metric("Lesson Plan Rate", f"{submission_rate:.0f}%")
+        # Settings toggle
+        st.markdown("---")
+        if st.button("⚙️ Settings"):
+            st.session_state.show_settings = not st.session_state.get('show_settings', False)
+            st.rerun()
     
-    # Route to different pages
-    if page == "📊 Dashboard":
-        show_dashboard()
-    elif page == "📝 Grade Assignment":
-        show_assignment_grading_form()
-    elif page == "🧪 Test Data":
-        show_test_data()
-    elif page == "⚙️ Settings":
+    # Main content - always show grading form unless settings
+    if st.session_state.get('show_settings', False):
         show_settings()
+    else:
+        show_assignment_grading_form()
 
 def show_dashboard():
-    """Dashboard with evaluation overview and analytics"""
-    st.header("📊 Evaluation Dashboard")
+    """Dashboard with CS assignment grading analytics"""
+    st.header("📊 CS Assignment Dashboard")
     
     evaluations = load_evaluations()
+    cs_evaluations = [e for e in evaluations if e.get('rubric_type') == 'cs_programming']
     
-    if not evaluations:
-        st.info("No evaluations found. Create your first evaluation to get started!")
-        if st.button("Create New Evaluation"):
-            st.session_state.page = "📝 New Evaluation"
-            st.rerun()
+    if not cs_evaluations:
+        st.info("No CS assignments found. Grade your first assignment to get started!")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Grade Assignment"):
+                st.session_state.page = "📝 Grade Assignment"
+                st.rerun()
+        with col2:
+            if st.button("🚀 Quick Test", type="primary"):
+                # Same quick test logic as sidebar
+                from data.synthetic_rubric_generator import generate_assignment_package
+                package = generate_assignment_package(difficulty="intermediate")
+                st.session_state.assignment_prompt = package["assignment"]['prompt']
+                st.session_state.code_text = package['sample_solution']
+                st.session_state.synthetic_rubric = package['rubric']
+                st.session_state.page = "📝 Grade Assignment"
+                st.rerun()
         return
     
     # Convert to DataFrame for analysis
-    df = pd.DataFrame(evaluations)
+    df = pd.DataFrame(cs_evaluations)
     
-    # Enhanced Metrics Row 1
+    # CS Assignment Metrics
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        st.metric("Total Evaluations", len(df))
+        st.metric("Total Assignments", len(cs_evaluations))
     with col2:
-        if 'status' in df.columns:
-            completed = len(df[df['status'] == 'completed'])
-        else:
-            completed = 0
-        st.metric("Completed", completed)
+        completed = len([e for e in cs_evaluations if e.get('status') == 'completed'])
+        st.metric("Graded", completed)
     with col3:
-        if completed > 0 and 'total_score' in df.columns:
-            avg_score = df[df['status'] == 'completed']['total_score'].mean()
+        if completed > 0:
+            avg_score = sum(e.get('total_score', 0) for e in cs_evaluations if e.get('status') == 'completed') / completed
             st.metric("Average Score", f"{avg_score:.1f}")
         else:
             st.metric("Average Score", "N/A")
     with col4:
-        if len(df) > 0 and 'status' in df.columns:
-            success_rate = (completed/len(df)*100)
-            st.metric("Success Rate", f"{success_rate:.1f}%")
+        if cs_evaluations:
+            pass_rate = sum(1 for e in cs_evaluations if e.get('total_score', 0) >= len(e.get('scores', {})) * 2) / len(cs_evaluations) * 100
+            st.metric("Pass Rate", f"{pass_rate:.1f}%")
         else:
-            st.metric("Success Rate", "N/A")
+            st.metric("Pass Rate", "N/A")
     
-    # Enhanced Metrics Row 2 - Dashboard Feedback Implementation
+    # CS Assignment Analytics
     st.markdown("---")
     col1, col2, col3, col4 = st.columns(4)
     with col1:
-        # Evaluation Types breakdown
-        field_evals = len(df[df['rubric_type'] == 'field_evaluation']) if 'rubric_type' in df.columns else 0
-        ster_evals = len(df[df['rubric_type'] == 'ster']) if 'rubric_type' in df.columns else 0
-        st.metric("Field Evaluations", field_evals)
-        st.metric("STER Evaluations", ster_evals)
+        # Assignment difficulty breakdown
+        if cs_evaluations:
+            beginner = len([e for e in cs_evaluations if e.get('extracted_info', {}).get('difficulty') == 'beginner'])
+            intermediate = len([e for e in cs_evaluations if e.get('extracted_info', {}).get('difficulty') == 'intermediate'])
+            advanced = len([e for e in cs_evaluations if e.get('extracted_info', {}).get('difficulty') == 'advanced'])
+            st.metric("Beginner", beginner)
+            st.metric("Intermediate", intermediate)
+            st.metric("Advanced", advanced)
     with col2:
-        # Subject Areas count
-        unique_subjects = df['subject_area'].nunique() if 'subject_area' in df.columns else 0
-        total_subjects = len(df['subject_area'].dropna()) if 'subject_area' in df.columns else 0
-        st.metric("Subject Areas", unique_subjects)
-        if total_subjects > 0:
-            st.caption(f"Total subject records: {total_subjects}")
+        # Course breakdown
+        if cs_evaluations:
+            courses = [e.get('course', 'Unknown') for e in cs_evaluations]
+            unique_courses = len(set(courses))
+            st.metric("Courses", unique_courses)
+            most_common = max(set(courses), key=courses.count) if courses else "N/A"
+            st.caption(f"Most common: {most_common}")
     with col3:
-        # Current Semester
-        current_semester = df['semester'].mode()[0] if 'semester' in df.columns and len(df) > 0 else "Spring 2025"
-        semester_count = len(df[df['semester'] == current_semester]) if 'semester' in df.columns else 0
-        st.metric("Current Semester", current_semester)
-        st.caption(f"Evaluations this semester: {semester_count}")
+        # Assignment types
+        if cs_evaluations:
+            assignment_names = [e.get('assignment_name', '').split(' - ')[0] for e in cs_evaluations]
+            unique_assignments = len(set(assignment_names))
+            st.metric("Assignment Types", unique_assignments)
     with col4:
-        # Department distribution
-        unique_departments = df['department'].nunique() if 'department' in df.columns else 0
-        st.metric("Departments", unique_departments)
-        if 'department' in df.columns:
-            dept_counts = df['department'].value_counts()
-            most_active = dept_counts.index[0] if len(dept_counts) > 0 else "N/A"
-            st.caption(f"Most active: {most_active}")
+        # Synthetic vs Real
+        if cs_evaluations:
+            synthetic_count = len([e for e in cs_evaluations if e.get('is_synthetic', False)])
+            real_count = len(cs_evaluations) - synthetic_count
+            st.metric("Real Assignments", real_count)
+            st.metric("Synthetic", synthetic_count)
     
     # Enhanced Charts Section
     st.subheader("📈 Evaluation Analytics")
