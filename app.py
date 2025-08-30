@@ -36,6 +36,7 @@ from services.code_analysis_service import analyze_python_code
 from services.pdf_service import PDFService
 from utils.storage import save_evaluation, load_evaluations, export_data, import_data, save_ai_original, get_evaluation_comparison, get_evaluation_by_id, save_user_feedback
 from utils.validation import validate_evaluation, calculate_score
+from components.assignment_grading import show_assignment_grading_form
 
 # Page configuration
 st.set_page_config(
@@ -70,8 +71,8 @@ def main():
         
         page = st.selectbox(
             "Navigation",
-            ["📝 New Evaluation", "📊 Dashboard", "🧪 Test Data", "⚙️ Settings"],
-            index=0  # Explicitly set the default to first item (New Evaluation)
+            ["📝 Grade Assignment", "📊 Dashboard", "🧪 Test Data", "⚙️ Settings"],
+            index=0  # Explicitly set the default to first item
         )
         
         # Quick stats
@@ -89,8 +90,8 @@ def main():
     # Route to different pages
     if page == "📊 Dashboard":
         show_dashboard()
-    elif page == "📝 New Evaluation":
-        show_evaluation_form()
+    elif page == "📝 Grade Assignment":
+        show_assignment_grading_form()
     elif page == "🧪 Test Data":
         show_test_data()
     elif page == "⚙️ Settings":
@@ -984,21 +985,20 @@ def show_research_comparison():
             st.write("- The evaluation hasn't been completed yet")
 
 def show_evaluation_form():
-    """Evaluation form for creating new evaluations"""
-    st.header("📝 New Evaluation")
+    """Assignment grading form"""
+    st.header("📝 Grade Programming Assignment")
     
-    # Get dispositions (same for all evaluation types)
-    dispositions = get_professional_dispositions()
-    
-    # Initialize session state for lesson plan analysis
-    if 'lesson_plan_analysis' not in st.session_state:
-        st.session_state.lesson_plan_analysis = None
+    # Initialize session state for assignment grading
+    if 'assignment_prompt' not in st.session_state:
+        st.session_state.assignment_prompt = ""
+    if 'code_text' not in st.session_state:
+        st.session_state.code_text = ""
     if 'extracted_info' not in st.session_state:
         st.session_state.extracted_info = {}
     
-    # STEP 1: Lesson Plan Upload (Optional)
-    st.subheader("📄 Step 1: Upload Lesson Plan (Optional)")
-    st.caption("Upload the student teacher's lesson plan to automatically extract evaluation information, or skip to proceed without it")
+    # STEP 1: Assignment Information
+    st.subheader("📋 Step 1: Assignment Details")
+    st.caption("Provide assignment context to help AI generate better feedback")
     
     # Add skip option
     col1, col2 = st.columns([3, 1])
@@ -3009,13 +3009,60 @@ def show_test_data():
     """Test data generation and management"""
     st.header("🧪 Synthetic Test Data")
     
-    st.info("Generate synthetic evaluation data for testing and demonstration purposes.")
+    st.info("Generate synthetic CS assignment data for testing and demonstration purposes.")
+    
+    # CS-focused synthetic data generation
+    st.subheader("🎯 CS Assignment Data")
+    
+    col1, col2 = st.columns(2)
+    with col1:
+        num_assignments = st.number_input("Number of assignments to generate", 1, 50, 10)
+        assignment_type = st.selectbox("Assignment Type", ["CS 1400 Mixed", "Beginner Only", "Intermediate Only", "Advanced Only"])
+    
+    with col2:
+        quality_distribution = st.selectbox(
+            "Code Quality Distribution",
+            ["mixed", "high_quality", "low_quality", "random"]
+        )
+    
+    if st.button("🚀 Generate CS Assignment Data", type="primary"):
+        from data.cs_synthetic import generate_cs_assignment_data
+        
+        with st.spinner("Generating synthetic CS assignments..."):
+            synthetic_assignments = generate_cs_assignment_data(count=num_assignments)
+            
+            # Convert to evaluation format and save
+            for assignment in synthetic_assignments:
+                evaluation = {
+                    'id': str(uuid.uuid4()),
+                    'student_name': f"Student {random.randint(1000, 9999)}",
+                    'grader_name': 'Synthetic Grader',
+                    'course': assignment['course'],
+                    'assignment_name': assignment['assignment_name'],
+                    'rubric_type': 'cs_programming',
+                    'assignment_prompt': assignment['assignment_prompt'],
+                    'code_text': assignment['student_code'],
+                    'scores': {},  # Will be filled by AI
+                    'justifications': {},
+                    'total_score': 0,
+                    'status': 'draft',
+                    'created_at': datetime.now().isoformat(),
+                    'is_synthetic': True,
+                    'synthetic_type': 'cs_assignment'
+                }
+                save_evaluation(evaluation)
+            
+            st.success(f"✅ Generated {len(synthetic_assignments)} CS assignments!")
+            st.rerun()
+    
+    # Legacy synthetic data (for backward compatibility)
+    st.subheader("📚 Legacy Test Data")
     
     col1, col2 = st.columns(2)
     
     with col1:
-        num_evaluations = st.number_input("Number of evaluations to generate", 1, 100, 10)
-        rubric_type = st.selectbox("Rubric type", ["field_evaluation", "ster", "both"])
+        num_evaluations = st.number_input("Number of legacy evaluations", 1, 100, 5)
+        rubric_type = st.selectbox("Legacy rubric type", ["field_evaluation", "ster", "both"])
     
     with col2:
         score_distribution = st.selectbox(
