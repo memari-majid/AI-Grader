@@ -182,7 +182,15 @@ def send_chat_message(message: str, use_context: bool, openai_service: OpenAISer
             temperature=1  # Use default temperature for compatibility
         )
         
-        ai_response = response.choices[0].message.content.strip()
+        # Extract response content
+        if response and response.choices and len(response.choices) > 0:
+            ai_response = response.choices[0].message.content
+            if ai_response:
+                ai_response = ai_response.strip()
+            else:
+                ai_response = "I apologize, but I couldn't generate a response. Please try again."
+        else:
+            ai_response = "Sorry, I received an empty response. Please try again."
         
         # Add AI response to history
         st.session_state.chat_history.append({
