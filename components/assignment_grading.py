@@ -32,13 +32,76 @@ def show_assignment_grading_form():
     if 'ai_analyses' not in st.session_state:
         st.session_state.ai_analyses = {}
     
-    # Clear button
-    if st.button("🔄 Start New Assignment", help="Clear all data and start fresh"):
-        for key in ['assignment_prompt', 'code_text', 'scores', 'justifications', 'ai_analyses', 'rubric_meta']:
-            if key in st.session_state:
-                del st.session_state[key]
-        st.success("✅ Started new assignment")
-        st.rerun()
+    # Quick action buttons
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        if st.button("🔄 Start New Assignment", help="Clear all data and start fresh"):
+            for key in ['assignment_prompt', 'code_text', 'scores', 'justifications', 'ai_analyses', 'rubric_meta', 'synthetic_rubric']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.success("✅ Started new assignment")
+            st.rerun()
+    
+    with col2:
+        if st.button("🚀 Auto-Generate Everything", type="primary", help="Generate assignment + rubric + code + AI grading in one click"):
+            with st.spinner("🎯 Generating complete test scenario..."):
+                # Generate complete package
+                package = generate_assignment_package(difficulty="intermediate")
+                assignment = package["assignment"]
+                
+                # Load assignment data
+                st.session_state.assignment_prompt = assignment['prompt']
+                st.session_state.code_text = package['sample_solution']
+                st.session_state.synthetic_rubric = package['rubric']
+                st.session_state.extracted_info = {
+                    'course': 'CS 1400',
+                    'assignment_name': assignment['name'],
+                    'grader_name': 'Demo Grader',
+                    'topics': assignment['topics'],
+                    'difficulty': assignment['difficulty'],
+                    'package_id': package['package_id'],
+                    'auto_generated': True
+                }
+                
+                # Auto-generate AI feedback
+                try:
+                    openai_service = OpenAIService()
+                    if openai_service.is_enabled():
+                        metrics = analyze_python_code(package['sample_solution'])
+                        result = openai_service.generate_code_feedback(
+                            rubric=package['rubric'],
+                            code_text=package['sample_solution'],
+                            metrics=metrics,
+                            assignment_name=f"CS 1400 - {assignment['name']}"
+                        )
+                        
+                        # Store AI feedback and scores
+                        st.session_state.ai_analyses = result.get('feedback', {})
+                        ai_scores = result.get('scores', {})
+                        for item_id, score in ai_scores.items():
+                            if isinstance(score, int):
+                                st.session_state.scores[item_id] = score
+                        
+                        for item_id, feedback in st.session_state.ai_analyses.items():
+                            st.session_state.justifications[item_id] = feedback
+                        
+                        st.success("🎉 Complete test scenario generated! Assignment + Rubric + Code + AI Grading ready!")
+                    else:
+                        st.warning("⚠️ Generated assignment package, but AI feedback requires API key")
+                except Exception as e:
+                    st.error(f"Generated assignment package, but AI feedback failed: {e}")
+                
+                st.rerun()
+    
+    with col3:
+        if st.button("📊 View Demo", help="See a complete grading example"):
+            st.session_state.show_demo = True
+            st.rerun()
+    
+    # Show demo if requested
+    if st.session_state.get('show_demo'):
+        show_demo_grading_example()
+        return
     
     # STEP 1: Assignment Context
     st.subheader("📋 Step 1: Assignment Context")
@@ -376,3 +439,99 @@ def save_grading_result(status: str, items: list, custom_rubric: Dict[str, Any],
     }
     
     save_evaluation(evaluation)
+
+
+def show_demo_grading_example():
+    """Show a complete demo of the grading workflow"""
+    st.header("📊 CS AI Grader Demo")
+    st.caption("Complete example of assignment grading workflow")
+    
+    if st.button("← Back to Grading"):
+        st.session_state.show_demo = False
+        st.rerun()
+    
+    # Generate a demo package
+    package = generate_assignment_package(difficulty="intermediate")
+    grading_session = create_synthetic_grading_session(package)
+    
+    assignment = package["assignment"]
+    rubric = package["rubric"]
+    scores = grading_session["ai_scores"]
+    feedback = grading_session["ai_feedback"]
+    
+    # Show assignment details
+    st.subheader("📋 Assignment")
+    st.info(f"**{assignment['name']}** ({assignment['difficulty']})")
+    with st.expander("📝 Assignment Prompt", expanded=False):
+        st.text(assignment['prompt'])
+    
+    # Show generated rubric
+    st.subheader("📊 Generated Rubric")
+    st.info(f"**{rubric['name']}** - {len(rubric['criteria'])} criteria")
+    
+    for criterion in rubric['criteria']:
+        with st.expander(f"{criterion['code']}: {criterion['title']}"):
+            st.write(f"**Category:** {criterion['category']}")
+            st.write(f"**Description:** {criterion['description']}")
+            for level, desc in criterion['levels'].items():
+                st.write(f"**Level {level}:** {desc}")
+    
+    # Show student code
+    st.subheader("💻 Student Code")
+    st.code(package['sample_solution'], language="python")
+    
+    # Show AI grading results
+    st.subheader("🤖 AI Grading Results")
+    
+    col1, col2, col3 = st.columns(3)
+    session = grading_session["grading_session"]
+    with col1:
+        st.metric("Total Score", session["total_score"])
+    with col2:
+        st.metric("Criteria Count", session["criteria_count"])
+    with col3:
+        st.metric("Pass Rate", f"{session['pass_rate']:.1%}")
+    
+    # Show detailed feedback
+    st.subheader("📝 Detailed Feedback")
+    for criterion in rubric['criteria']:
+        crit_id = criterion['id']
+        score = scores.get(crit_id, 0)
+        feedback_text = feedback.get(crit_id, "No feedback")
+        
+        with st.container():
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                st.write(f"**{criterion['code']}: {criterion['title']}**")
+                st.write(feedback_text)
+            with col2:
+                color = "green" if score >= 2 else "orange" if score == 1 else "red"
+                st.markdown(f"<div style='text-align: center; color: {color}; font-size: 24px; font-weight: bold;'>Score: {score}</div>", unsafe_allow_html=True)
+            st.divider()
+    
+    # Action buttons
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("🎲 Generate New Demo", type="primary"):
+            st.rerun()
+    with col2:
+        if st.button("✅ Use This for Testing"):
+            # Load this demo data into the main workflow
+            st.session_state.assignment_prompt = assignment['prompt']
+            st.session_state.code_text = package['sample_solution']
+            st.session_state.synthetic_rubric = package['rubric']
+            st.session_state.extracted_info = {
+                'course': 'CS 1400',
+                'assignment_name': assignment['name'],
+                'grader_name': 'Demo Grader',
+                'topics': assignment['topics'],
+                'difficulty': assignment['difficulty'],
+                'package_id': package['package_id'],
+                'from_demo': True
+            }
+            st.session_state.ai_analyses = feedback
+            st.session_state.scores = scores
+            st.session_state.justifications = feedback
+            st.session_state.show_demo = False
+            st.success("✅ Demo data loaded into grading workflow!")
+            st.rerun()

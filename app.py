@@ -75,6 +75,61 @@ def main():
             index=0  # Explicitly set the default to first item
         )
         
+        # Quick test button in sidebar
+        st.markdown("---")
+        if st.button("🚀 Quick Test", type="primary", help="Generate everything needed to test the app instantly"):
+            # Auto-generate and switch to grading page
+            from data.synthetic_rubric_generator import generate_assignment_package
+            from services.code_analysis_service import analyze_python_code
+            
+            with st.spinner("🎯 Setting up complete test scenario..."):
+                package = generate_assignment_package(difficulty="intermediate")
+                assignment = package["assignment"]
+                
+                # Load all synthetic data
+                st.session_state.assignment_prompt = assignment['prompt']
+                st.session_state.code_text = package['sample_solution']
+                st.session_state.synthetic_rubric = package['rubric']
+                st.session_state.extracted_info = {
+                    'course': 'CS 1400',
+                    'assignment_name': assignment['name'],
+                    'grader_name': 'Quick Test',
+                    'topics': assignment['topics'],
+                    'difficulty': assignment['difficulty'],
+                    'package_id': package['package_id'],
+                    'quick_test': True
+                }
+                
+                # Try to generate AI feedback immediately
+                try:
+                    if openai_service.is_enabled():
+                        metrics = analyze_python_code(package['sample_solution'])
+                        result = openai_service.generate_code_feedback(
+                            rubric=package['rubric'],
+                            code_text=package['sample_solution'],
+                            metrics=metrics,
+                            assignment_name=f"CS 1400 - {assignment['name']}"
+                        )
+                        
+                        st.session_state.ai_analyses = result.get('feedback', {})
+                        ai_scores = result.get('scores', {})
+                        for item_id, score in ai_scores.items():
+                            if isinstance(score, int):
+                                st.session_state.scores[item_id] = score
+                        
+                        for item_id, feedback in st.session_state.ai_analyses.items():
+                            st.session_state.justifications[item_id] = feedback
+                        
+                        st.success("🎉 Complete test ready! Switching to grading page...")
+                    else:
+                        st.warning("⚠️ Test data loaded, but AI feedback needs API key")
+                except Exception as e:
+                    st.error(f"Test data loaded, but AI failed: {e}")
+                
+                # Force page to Grade Assignment
+                st.session_state.page = "📝 Grade Assignment"
+                st.rerun()
+        
         # Quick stats
         evaluations = load_evaluations()
         st.metric("Total Evaluations", len(evaluations))
