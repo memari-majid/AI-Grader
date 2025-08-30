@@ -32,14 +32,15 @@ from data.rubrics import get_field_evaluation_items, get_ster_items, get_profess
 from data.rubric_loader import parse_rubric_json, rubric_to_items, get_sample_cs_rubric
 from data.synthetic import generate_synthetic_evaluations
 from services.openai_service import OpenAIService
+from services.code_analysis_service import analyze_python_code
 from services.pdf_service import PDFService
-from utils.storage import save_evaluation, load_evaluations, export_data, import_data, save_ai_original, get_evaluation_comparison, get_evaluation_by_id
+from utils.storage import save_evaluation, load_evaluations, export_data, import_data, save_ai_original, get_evaluation_comparison, get_evaluation_by_id, save_user_feedback
 from utils.validation import validate_evaluation, calculate_score
 
 # Page configuration
 st.set_page_config(
-    page_title="AI-STER - Student Teaching Evaluation System",
-    page_icon="🎓",
+    page_title="CS AI Grader - Computer Science Grading Platform",
+    page_icon="💻",
     layout="wide",
     initial_sidebar_state="expanded"
 )
@@ -54,8 +55,8 @@ def main():
     # Header with AI status
     col1, col2 = st.columns([3, 1])
     with col1:
-        st.title("🎓 AI-STER")
-        st.caption("Student Teaching Evaluation Rubric System")
+        st.title("💻 CS AI Grader")
+        st.caption("Computer Science Assignment Grading Assistant")
     
     with col2:
         if openai_service.is_enabled():
@@ -65,7 +66,7 @@ def main():
     
     # Sidebar navigation
     with st.sidebar:
-        st.image("logo.png", width=200)
+        st.image("logo.png", width=200, caption="CS AI Grader")
         
         page = st.selectbox(
             "Navigation",
@@ -1483,9 +1484,14 @@ def show_evaluation_form():
     st.subheader("📋 Evaluation Type")
     rubric_type = st.selectbox(
         "Select Evaluation Type",
-        ["field_evaluation", "ster", "custom"],
-        index=1,
-        format_func=lambda x: "Field Evaluation" if x == "field_evaluation" else ("STER" if x == "ster" else "Custom Rubric")
+        ["cs_programming", "custom", "field_evaluation", "ster"],
+        index=0,
+        format_func=lambda x: {
+            "cs_programming": "CS Programming (UVU)",
+            "custom": "Custom Rubric",
+            "field_evaluation": "Field Evaluation (Legacy)",
+            "ster": "STER (Legacy)"
+        }[x]
     )
     
     # Add rubric reference section
@@ -1559,7 +1565,19 @@ def show_evaluation_form():
     
     # Get rubric items based on evaluation type
     custom_rubric = None
-    if rubric_type == "field_evaluation":
+    if rubric_type == "cs_programming":
+        st.info("📋 **CS Programming Evaluation** - Upload code, run static analysis, and generate AI feedback")
+        # Use sample CS rubric by default; allow override in Settings later
+        custom_rubric = get_sample_cs_rubric()
+        items = rubric_to_items(custom_rubric)
+        st.caption(f"Loaded {len(items)} CS criteria from rubric: {custom_rubric.get('name')}")
+        st.session_state.rubric_meta = {
+            'name': custom_rubric.get('name', 'CS Programming Rubric'),
+            'version': custom_rubric.get('version', '1.0'),
+            'scale': custom_rubric.get('scale', {'min': 0, 'max': 3}),
+            'criteria_count': len(custom_rubric.get('criteria', []))
+        }
+    elif rubric_type == "field_evaluation":
         items = get_field_evaluation_items()
         
         # Display evaluation information  
@@ -1649,9 +1667,39 @@ def show_evaluation_form():
     if 'show_ai_comparison' not in st.session_state:
         st.session_state.show_ai_comparison = False
     
-    # STEP 3: Classroom Observation Notes
-    st.subheader("📝 Step 3: Classroom Observation Notes")
-    st.caption("Record your detailed observations of the student teacher's performance during the lesson")
+    # STEP 3: Input (Observations for legacy or Code for CS)
+    if rubric_type == "cs_programming":
+        st.subheader("💻 Step 3: Submit Code (Python)")
+        st.caption("Upload or paste the student's code. We'll run static analysis to inform AI feedback.")
+        code_input_method = st.radio(
+            "Choose input method:",
+            ["✏️ Paste Code", "📤 Upload .py File"],
+            horizontal=True,
+            key="code_input_method"
+        )
+        code_text = ""
+        if code_input_method == "✏️ Paste Code":
+            code_text = st.text_area(
+                "Paste Python code:",
+                value=st.session_state.get('code_text', ''),
+                height=240,
+                placeholder="# Paste student's Python solution here",
+                key="code_text_area"
+            )
+        else:
+            code_file = st.file_uploader("Upload .py file", type=['py'], key="code_file_uploader")
+            if code_file is not None:
+                try:
+                    code_text = code_file.read().decode('utf-8')
+                    st.success(f"✅ Loaded {code_file.name}")
+                except Exception as e:
+                    st.error(f"Failed to read file: {e}")
+        st.session_state.code_text = code_text
+        observation_notes = ""  # not used in CS mode
+    else:
+        # Legacy observation flow
+        st.subheader("📝 Step 3: Classroom Observation Notes")
+        st.caption("Record your detailed observations of the student teacher's performance during the lesson")
     
     # Input method selection
     col1, col2 = st.columns([3, 1])
@@ -1984,28 +2032,30 @@ Be as detailed as possible - these notes will be used to generate evidence-based
                         key="current_notes_preview"
                     )
     
-    # Store observation notes in session state
-    st.session_state.observation_notes = observation_notes
+    # Store observation notes in session state (legacy)
+    if rubric_type != "cs_programming":
+        st.session_state.observation_notes = observation_notes
     
     # STEP 4: Score & Review Competencies (Merged Steps 4, 5, 6)
-    st.subheader("🎯 Step 4: Score & Review Competencies")
-    if st.session_state.lesson_plan_analysis:
-        st.caption("AI analyzes your observation notes and lesson plan, then you score and review each competency")
+    st.subheader("🎯 Step 4: Score & Review Criteria")
+    if rubric_type == "cs_programming":
+        st.caption("AI analyzes the code and static metrics, then you score and review each criterion")
     else:
-        st.caption("AI analyzes your observation notes, then you score and review each competency")
+        if st.session_state.lesson_plan_analysis:
+            st.caption("AI analyzes your observation notes and lesson plan, then you score and review each competency")
+        else:
+            st.caption("AI analyzes your observation notes, then you score and review each competency")
     
     # Generate AI Analysis if not already done
-    if observation_notes.strip():
+    if (rubric_type == "cs_programming" and st.session_state.get('code_text','').strip()) or (rubric_type != "cs_programming" and observation_notes.strip()):
         if openai_service.is_enabled():
             if not st.session_state.get('ai_analyses'):
                 col1, col2 = st.columns([2, 1])
                 with col1:
-                    button_text = "🤖 Generate AI Analysis & Begin Scoring"
-                    if not st.session_state.lesson_plan_analysis:
-                        button_text += " (Observation Notes Only)"
+                    button_text = "🤖 Generate AI Feedback & Begin Scoring"
                         
                     if st.button(button_text, type="primary", key="generate_ai_analysis"):
-                        with st.spinner("Analyzing observation notes and generating evidence-based justifications..."):
+                        with st.spinner("Analyzing submission and generating evidence-based feedback..."):
                             try:
                                 # Get lesson plan context if available
                                 lesson_plan_context = None
@@ -2015,7 +2065,17 @@ Be as detailed as possible - these notes will be used to generate evidence-based
                                     lesson_plan_context += f"Lesson Structure: {st.session_state.lesson_plan_analysis.get('lesson_structure', 'N/A')}"
                                 
                                 # Generate AI analysis depending on rubric type
-                                if rubric_type == "custom" and custom_rubric is not None:
+                                if rubric_type == "cs_programming" and custom_rubric is not None:
+                                    code_text = st.session_state.get('code_text','')
+                                    code_metrics = analyze_python_code(code_text)
+                                    result = openai_service.generate_code_feedback(
+                                        rubric=custom_rubric,
+                                        code_text=code_text,
+                                        metrics=code_metrics,
+                                        assignment_name=f"{subject_area} Programming Assignment"
+                                    )
+                                    ai_analyses = {item['id']: result.get('feedback', {}).get(item['id'], '') for item in items}
+                                elif rubric_type == "custom" and custom_rubric is not None:
                                     result = openai_service.generate_feedback_for_custom_rubric(
                                         rubric=custom_rubric,
                                         submission_text=observation_notes,
@@ -2042,9 +2102,7 @@ Be as detailed as possible - these notes will be used to generate evidence-based
                                 # Also store as justifications for the save functionality
                                 for item_id, analysis in ai_analyses.items():
                                     st.session_state.justifications[item_id] = analysis
-                                success_message = f"✅ Generated AI analysis for {len(ai_analyses)} competencies!"
-                                if not st.session_state.lesson_plan_analysis:
-                                    success_message += " (Based on observation notes only)"
+                                success_message = f"✅ Generated AI feedback for {len(ai_analyses)} criteria!"
                                 st.success(success_message)
                                 st.rerun()
                                 
@@ -3177,15 +3235,33 @@ def show_settings():
             # Implementation needed
             st.warning("Clear data functionality not implemented yet")
     
+    # Feedback
+    st.subheader("🗣️ User Feedback")
+    with st.form("feedback_form"):
+        f_type = st.selectbox("Type", ["suggestion", "issue", "rating"], index=0)
+        f_message = st.text_area("Message", placeholder="Describe your suggestion or issue, or provide a rating rationale...")
+        f_rating = st.slider("Rating (optional)", 1, 5, 4)
+        submitted = st.form_submit_button("Submit Feedback")
+        if submitted:
+            if f_message.strip():
+                save_user_feedback({
+                    'type': f_type,
+                    'message': f_message.strip(),
+                    'rating': f_rating,
+                    'context': {
+                        'model': openai_service.model if openai_service else None
+                    }
+                })
+                st.success("Thanks for the feedback!")
+            else:
+                st.error("Please enter a message")
+
     # About
-    st.subheader("ℹ️ About AI-STER")
+    st.subheader("ℹ️ About CS AI Grader")
     st.write("""
-    **AI-STER** (AI-powered Student Teaching Evaluation Rubric) is a comprehensive evaluation system 
-    for student teachers, aligned with USBE standards and enhanced with AI capabilities.
-    
-    - **Version:** 1.0.0
-    - **USBE Compliance:** July 2024 standards
-    - **AI Features:** OpenAI-powered evaluation assistance
+    **CS AI Grader** is a research platform for AI-assisted grading in Computer Science courses.
+    It supports custom rubrics and code-aware feedback to help instructors and TAs provide 
+    fast, consistent, and constructive evaluations.
     """)
 
 def get_level_name(level) -> str:

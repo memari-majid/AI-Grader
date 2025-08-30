@@ -977,3 +977,116 @@ Instructions:
                 raise Exception("Could not parse JSON from AI response")
         except Exception as e:
             raise Exception(f"Failed to generate rubric-agnostic feedback: {str(e)}")
+
+    def generate_code_feedback(
+        self,
+        rubric: Dict,
+        code_text: str,
+        metrics: Optional[Dict[str, Any]] = None,
+        assignment_name: Optional[str] = None,
+        language: str = "Python"
+    ) -> Dict[str, Any]:
+        """
+        Generate code-aware feedback using rubric, code, and static metrics.
+        Returns same structure as generate_feedback_for_custom_rubric.
+        """
+        if not self.is_enabled():
+            raise Exception("OpenAI service is not configured")
+
+        # Truncate very long code to keep prompt within limits
+        truncated_code = code_text
+        max_len = 12000
+        if len(truncated_code) > max_len:
+            truncated_code = truncated_code[:9000] + "\n...\n" + truncated_code[-2500:]
+
+        criteria_text = []
+        for c in rubric.get('criteria', []):
+            levels = c.get('levels', {})
+            level_str = " | ".join([f"{k}: {v}" for k, v in levels.items()])
+            criteria_text.append(
+                f"{c.get('id')}: {c.get('title')} [Levels: {level_str}]"
+            )
+
+        rubric_header = f"Rubric: {rubric.get('name', 'Custom Rubric')} (v{rubric.get('version','1.0')})"
+        scale = rubric.get('scale', {"min": 0, "max": 3})
+
+        metrics_text = ""
+        if metrics:
+            pairs = []
+            for k in [
+                'lines','non_empty_lines','functions','classes','docstring_coverage',
+                'maintainability_index','avg_cyclomatic_complexity','max_cyclomatic_complexity',
+                'flake8_issues_count']:
+                if k in metrics and metrics[k] is not None:
+                    pairs.append(f"{k}: {metrics[k]}")
+            top_issues = metrics.get('flake8_top_issues', [])
+            if pairs:
+                metrics_text += "\nStatic Metrics: " + ", ".join(pairs)
+            if top_issues:
+                metrics_text += "\nTop Lint Issues:\n- " + "\n- ".join(top_issues[:10])
+
+        user_prompt = f"""
+Evaluate the following {language} submission against the rubric. Provide criterion-level scores and feedback.
+
+Assignment: {assignment_name or 'CS Programming Assignment'}
+{rubric_header}
+Scale: {scale}
+Criteria:
+{chr(10).join(criteria_text)}
+
+Code:
+"""
+        user_prompt += "\n" + truncated_code + "\n\n"
+        if metrics_text:
+            user_prompt += metrics_text + "\n\n"
+
+        user_prompt += """
+Instructions:
+1. For each criterion ID, assign a numeric score within the scale if applicable (or "not_applicable").
+2. Provide criterion-level feedback that is specific, constructive, and references the code and metrics.
+3. Provide an overall summary, strengths, and areas for improvement.
+4. Return ONLY valid JSON with this structure:
+{
+  "scores": {"CRIT_ID": 0-3 or "not_applicable", ...},
+  "feedback": {"CRIT_ID": "text", ...},
+  "overall": {
+      "summary": "text",
+      "strengths": ["text", ...],
+      "areas_for_improvement": ["text", ...]
+  }
+}
+"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert computer science teaching assistant. Be precise, fair, and evidence-based. Return JSON only."
+                    },
+                    {
+                        "role": "user",
+                        "content": user_prompt
+                    }
+                ],
+                max_completion_tokens=1500
+            )
+
+            response_text = response.choices[0].message.content.strip()
+            start_idx = response_text.find('{')
+            end_idx = response_text.rfind('}') + 1
+            if start_idx != -1 and end_idx != -1:
+                json_text = response_text[start_idx:end_idx]
+                result = json.loads(json_text)
+                result.setdefault('scores', {})
+                result.setdefault('feedback', {})
+                overall = result.setdefault('overall', {})
+                overall.setdefault('summary', '')
+                overall.setdefault('strengths', [])
+                overall.setdefault('areas_for_improvement', [])
+                return result
+            else:
+                raise Exception("Could not parse JSON from AI response")
+        except Exception as e:
+            raise Exception(f"Failed to generate code feedback: {str(e)}")

@@ -16,6 +16,11 @@ def ensure_storage_dir():
     """Ensure storage directory exists"""
     if not os.path.exists(STORAGE_DIR):
         os.makedirs(STORAGE_DIR)
+    # Create feedback file if missing
+    feedback_file = os.path.join(STORAGE_DIR, 'feedback.json')
+    if not os.path.exists(feedback_file):
+        with open(feedback_file, 'w', encoding='utf-8') as f:
+            json.dump([], f)
 
 def save_evaluation(evaluation: Dict[str, Any], preserve_ai_original: bool = True) -> None:
     """Save an evaluation to storage
@@ -222,3 +227,21 @@ def get_evaluation_comparison(evaluation_id: str) -> Dict[str, Any]:
         'differences': differences,
         'has_changes': len(differences) > 0
     } 
+
+def save_user_feedback(feedback: Dict[str, Any]) -> None:
+    """Append user feedback to feedback.json.
+    feedback keys suggested: {"type": "suggestion|issue|rating", "message": str, "context": {...}}
+    """
+    ensure_storage_dir()
+    feedback_file = os.path.join(STORAGE_DIR, 'feedback.json')
+    data: List[Dict[str, Any]] = []
+    try:
+        with open(feedback_file, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+            if not isinstance(data, list):
+                data = []
+    except Exception:
+        data = []
+    data.append(feedback)
+    with open(feedback_file, 'w', encoding='utf-8') as f:
+        json.dump(data, f, indent=2, ensure_ascii=False)

@@ -1,4 +1,4 @@
-# 🧪 AI-Grader: Research Platform for AI-Assisted Grading
+# 💻 CS AI Grader: Research Platform for AI-Assisted Grading
 
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org/)
@@ -72,9 +72,24 @@ OPENAI_MODEL=gpt-4o-mini
 
 ## 🧩 Custom Rubrics (General AI Grader)
 
-- Use the new "Custom Rubric" evaluation type to upload a rubric JSON or select the built-in CS sample rubric.
+- Use the "CS Programming (UVU)" type for Python code or the "Custom Rubric" type to upload a rubric JSON.
 - JSON schema: see `docs/RUBRIC_FORMAT.md` (criteria with ids, titles, and per-level descriptors).
 - The AI will generate criterion-level feedback and suggested scores based on the rubric, submission, and optional context.
+
+## ✅ CI-style Synthetic Test Pipeline
+
+Run a headless evaluation using synthetic code and rubric, outputting metrics:
+
+```bash
+python synthetic_eval.py --n 20 --rubric docs/examples/cs_sample_rubric.json
+```
+
+It reports:
+- Coverage: percent of criteria with non-empty feedback
+- Score distribution and pass-rate (≥2)
+- Lint/complexity summary
+
+Exit code is nonzero if thresholds are not met (for CI).
 
 ## License
 See LICENSE. 
