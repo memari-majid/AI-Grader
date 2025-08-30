@@ -219,27 +219,154 @@ def show_grading_interface():
             if st.button("✅ Complete Grading", type="primary", use_container_width=True):
                 # Save result
                 save_grading_data(data, scores, justifications, feedback)
+                st.session_state.final_scores = scores
+                st.session_state.final_justifications = justifications
                 st.session_state.grading_complete = True
                 st.rerun()
 
 def show_results():
-    """Step 3: Show results and reset"""
+    """Step 3: Show results with AI-powered features"""
+    
+    data = st.session_state.assignment_data
+    scores = st.session_state.get('final_scores', {})
+    justifications = st.session_state.get('final_justifications', {})
     
     st.header("🎉 Grading Complete!")
     st.success("Assignment has been graded and saved to the research database.")
     
+    # Show summary
+    total_score = sum(scores.values())
+    max_score = len(scores) * 3
+    percentage = (total_score / max_score) * 100 if max_score > 0 else 0
+    
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.metric("Final Score", f"{total_score}/{max_score}")
+    with col2:
+        st.metric("Percentage", f"{percentage:.1f}%")
+    with col3:
+        status = "Excellent" if percentage >= 90 else "Good" if percentage >= 80 else "Needs Work"
+        st.metric("Status", status)
+    
+    # AI-Powered Features
+    st.markdown("---")
+    st.subheader("🤖 AI-Powered Features")
+    
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        if st.button("📧 Generate Student Email", use_container_width=True):
+            if openai_service.is_enabled():
+                with st.spinner("Writing personalized email..."):
+                    try:
+                        email = openai_service.generate_student_email(
+                            student_name=data.get('student_id', 'Student'),
+                            assignment_name=data['assignment_name'],
+                            scores=scores,
+                            feedback=justifications,
+                            course=data['course'],
+                            instructor_name=data.get('grader_name', 'Instructor')
+                        )
+                        st.session_state.generated_email = email
+                        st.success("✅ Email generated!")
+                    except Exception as e:
+                        st.error(f"Email generation failed: {e}")
+            else:
+                st.error("OpenAI API key required")
+    
+    with col2:
+        if st.button("💡 Improvement Suggestions", use_container_width=True):
+            if openai_service.is_enabled():
+                with st.spinner("Generating improvement suggestions..."):
+                    try:
+                        suggestions = openai_service.generate_improvement_suggestions(
+                            code=data['code'],
+                            rubric_feedback=justifications,
+                            assignment_context=f"{data['course']} - {data['assignment_name']}"
+                        )
+                        st.session_state.improvement_suggestions = suggestions
+                        st.success("✅ Suggestions generated!")
+                    except Exception as e:
+                        st.error(f"Suggestion generation failed: {e}")
+            else:
+                st.error("OpenAI API key required")
+    
+    with col3:
+        if st.button("🔍 Code Analysis Report", use_container_width=True):
+            st.session_state.show_analysis = True
+            st.success("✅ Analysis ready!")
+    
+    # Show generated content
+    if st.session_state.get('generated_email'):
+        st.subheader("📧 Generated Email")
+        with st.expander("Student Email", expanded=True):
+            st.text_area("Email Content", st.session_state.generated_email, height=300)
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.download_button(
+                    "📥 Download Email",
+                    data=st.session_state.generated_email,
+                    file_name=f"feedback_email_{data['assignment_name'].replace(' ', '_')}.txt",
+                    mime="text/plain"
+                )
+            with col2:
+                if st.button("📋 Copy to Clipboard"):
+                    st.code(st.session_state.generated_email)
+    
+    if st.session_state.get('improvement_suggestions'):
+        st.subheader("💡 Improvement Suggestions")
+        with st.expander("For Student", expanded=True):
+            st.markdown(st.session_state.improvement_suggestions)
+    
+    if st.session_state.get('show_analysis'):
+        st.subheader("🔍 Code Analysis Report")
+        with st.expander("Technical Analysis", expanded=True):
+            try:
+                metrics = analyze_python_code(data['code'])
+                col1, col2, col3 = st.columns(3)
+                with col1:
+                    st.metric("Lines of Code", metrics.get('lines', 0))
+                    st.metric("Functions", metrics.get('functions', 0))
+                with col2:
+                    st.metric("Classes", metrics.get('classes', 0))
+                    st.metric("Doc Coverage", f"{metrics.get('docstring_coverage', 0):.1%}")
+                with col3:
+                    if metrics.get('maintainability_index'):
+                        st.metric("Maintainability", f"{metrics.get('maintainability_index', 0):.1f}")
+                    if metrics.get('avg_cyclomatic_complexity'):
+                        st.metric("Avg Complexity", f"{metrics.get('avg_cyclomatic_complexity', 0):.1f}")
+            except Exception as e:
+                st.error(f"Code analysis failed: {e}")
+    
+    # Action buttons
+    st.markdown("---")
     col1, col2 = st.columns(2)
     with col1:
         if st.button("📝 Grade Another Assignment", type="primary", use_container_width=True):
-            st.session_state.assignment_data = None
+            # Clear all session state
+            for key in ['assignment_data', 'grading_complete', 'ai_feedback', 'final_scores', 
+                       'final_justifications', 'generated_email', 'improvement_suggestions', 'show_analysis']:
+                if key in st.session_state:
+                    del st.session_state[key]
+            st.rerun()
+    
+    with col2:
+        if st.button("🚀 Quick Test Again", use_container_width=True):
+            # Generate new test assignment
+            package = generate_assignment_package("intermediate")
+            st.session_state.assignment_data = {
+                'course': 'CS 1400',
+                'assignment_name': package['assignment']['name'],
+                'prompt': package['assignment']['prompt'],
+                'code': package['sample_solution'],
+                'rubric': package['rubric'],
+                'is_synthetic': True
+            }
             st.session_state.grading_complete = False
             if 'ai_feedback' in st.session_state:
                 del st.session_state.ai_feedback
             st.rerun()
-    
-    with col2:
-        if st.button("📊 View Research Data", use_container_width=True):
-            show_research_summary()
 
 def save_grading_data(assignment_data, scores, justifications, ai_feedback):
     """Save grading data securely"""

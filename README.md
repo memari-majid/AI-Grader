@@ -20,7 +20,7 @@ A general-purpose grading research platform to study automated grading with AI u
 ## 🛠 Technology Stack
 
 - Streamlit + Python 3.12+
-- OpenAI API (default model: gpt-4o-mini, configurable via `OPENAI_MODEL`)
+- OpenAI API (default model: gpt-5-nano for cost optimization, configurable via `OPENAI_MODEL`)
 - Local JSON storage (SQLite planned)
 
 ## 🚀 Quick Start
@@ -61,7 +61,7 @@ Open http://localhost:8501 in your browser.
 OPENAI_API_KEY=your_openai_api_key_here
 
 # Optional
-OPENAI_MODEL=gpt-4o-mini
+OPENAI_MODEL=gpt-5-nano
 ```
 
 ## 📊 Research Focus
@@ -76,20 +76,30 @@ OPENAI_MODEL=gpt-4o-mini
 - JSON schema: see `docs/RUBRIC_FORMAT.md` (criteria with ids, titles, and per-level descriptors).
 - The AI will generate criterion-level feedback and suggested scores based on the rubric, submission, and optional context.
 
-## ✅ CI-style Synthetic Test Pipeline
+## 🚀 Easy Deployment
 
-Run a headless evaluation using synthetic code and rubric, outputting metrics:
+Start the app with ngrok tunnel in one command:
 
 ```bash
-python synthetic_eval.py --n 20 --rubric docs/examples/cs_sample_rubric.json
+./start_app.sh
 ```
 
-It reports:
-- Coverage: percent of criteria with non-empty feedback
-- Score distribution and pass-rate (≥2)
-- Lint/complexity summary
+This automatically:
+- Starts Streamlit on port 8501
+- Creates ngrok tunnel at https://csaigrader.ngrok.app
+- Uses GPT-5-nano for cost-effective department-wide usage
 
-Exit code is nonzero if thresholds are not met (for CI).
+## 💰 Cost-Effective AI for UVU CS Department
+
+Instead of individual ChatGPT subscriptions for each professor/TA, this centralized app provides:
+- **Automated grading** with rubric-aligned feedback
+- **Student email generation** with personalized feedback
+- **Batch grading summaries** for class performance analysis
+- **Plagiarism detection** between submissions
+- **Custom rubric generation** for new assignments
+- **Improvement suggestions** tailored to student code
+
+All powered by GPT-5-nano to minimize API costs while serving the entire department.
 
 ## License
 See LICENSE. 

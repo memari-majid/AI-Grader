@@ -26,8 +26,8 @@ class OpenAIService:
     def __init__(self):
         """Initialize OpenAI service"""
         self.client = None
-        # Choose a conservative default model likely to exist if not configured
-        self.model = os.getenv('OPENAI_MODEL', 'gpt-4o-mini')
+        # Use GPT-5-nano for cost-effective department-wide usage
+        self.model = os.getenv('OPENAI_MODEL', 'gpt-5-nano')
         self._initialize_client()
     
     def _initialize_client(self):
@@ -1090,3 +1090,326 @@ Instructions:
                 raise Exception("Could not parse JSON from AI response")
         except Exception as e:
             raise Exception(f"Failed to generate code feedback: {str(e)}")
+    
+    def generate_student_email(
+        self,
+        student_name: str,
+        assignment_name: str,
+        scores: Dict[str, int],
+        feedback: Dict[str, str],
+        course: str = "CS 1400",
+        instructor_name: str = "Professor"
+    ) -> str:
+        """Generate personalized email to student with feedback"""
+        if not self.is_enabled():
+            raise Exception("OpenAI service is not configured")
+        
+        total_score = sum(scores.values())
+        max_score = len(scores) * 3
+        percentage = (total_score / max_score) * 100 if max_score > 0 else 0
+        
+        # Compile feedback summary
+        feedback_summary = []
+        for crit_id, score in scores.items():
+            feedback_text = feedback.get(crit_id, "No feedback provided")
+            feedback_summary.append(f"- {crit_id}: {score}/3 - {feedback_text}")
+        
+        prompt = f"""Write a professional, encouraging email to a computer science student about their assignment feedback.
+
+Student: {student_name}
+Course: {course}
+Assignment: {assignment_name}
+Score: {total_score}/{max_score} ({percentage:.1f}%)
+Instructor: {instructor_name}
+
+Detailed Feedback:
+{chr(10).join(feedback_summary)}
+
+Email should:
+1. Be professional but encouraging
+2. Highlight specific strengths from the feedback
+3. Provide constructive guidance for areas needing improvement
+4. Include next steps or suggestions for improvement
+5. Maintain a supportive, educational tone
+6. Be concise but comprehensive
+
+Write the complete email with subject line."""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful CS instructor writing supportive feedback emails to students. Be encouraging and specific."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                max_completion_tokens=800
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            raise Exception(f"Failed to generate student email: {str(e)}")
+    
+    def detect_code_similarity(
+        self,
+        code1: str,
+        code2: str,
+        assignment_context: str = ""
+    ) -> Dict[str, Any]:
+        """Analyze code similarity for plagiarism detection"""
+        if not self.is_enabled():
+            raise Exception("OpenAI service is not configured")
+        
+        prompt = f"""Compare these two code submissions for similarity and potential plagiarism.
+
+Assignment Context: {assignment_context}
+
+Code Submission 1:
+{code1}
+
+Code Submission 2:
+{code2}
+
+Analyze:
+1. Structural similarity (algorithm, logic flow)
+2. Variable naming patterns
+3. Comment similarity
+4. Overall approach similarity
+5. Likelihood of copying vs coincidental similarity
+
+Return JSON with:
+{{
+  "similarity_score": 0.0-1.0,
+  "likely_plagiarism": true/false,
+  "analysis": "detailed explanation",
+  "similar_elements": ["list of similar elements"],
+  "differences": ["list of differences"]
+}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert at detecting code plagiarism. Be thorough and fair in your analysis."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                max_completion_tokens=600
+            )
+            
+            response_text = response.choices[0].message.content.strip()
+            start_idx = response_text.find('{')
+            end_idx = response_text.rfind('}') + 1
+            if start_idx != -1 and end_idx != -1:
+                json_text = response_text[start_idx:end_idx]
+                result = json.loads(json_text)
+                return result
+            else:
+                return {
+                    "similarity_score": 0.0,
+                    "likely_plagiarism": False,
+                    "analysis": "Could not parse AI response",
+                    "similar_elements": [],
+                    "differences": []
+                }
+                
+        except Exception as e:
+            raise Exception(f"Failed to analyze code similarity: {str(e)}")
+    
+    def generate_improvement_suggestions(
+        self,
+        code: str,
+        rubric_feedback: Dict[str, str],
+        assignment_context: str = ""
+    ) -> str:
+        """Generate specific improvement suggestions for student code"""
+        if not self.is_enabled():
+            raise Exception("OpenAI service is not configured")
+        
+        feedback_text = "\n".join([f"{k}: {v}" for k, v in rubric_feedback.items()])
+        
+        prompt = f"""Based on the code and rubric feedback, provide specific, actionable improvement suggestions for this CS student.
+
+Assignment: {assignment_context}
+
+Student Code:
+{code}
+
+Rubric Feedback:
+{feedback_text}
+
+Provide 3-5 specific, actionable suggestions that would help the student improve their code. Focus on:
+1. Code quality improvements
+2. Best practices they should adopt
+3. Specific techniques or patterns to learn
+4. Resources for further learning
+
+Be encouraging and educational."""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are a helpful CS instructor providing constructive improvement suggestions."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                max_completion_tokens=500
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            raise Exception(f"Failed to generate improvement suggestions: {str(e)}")
+    
+    def generate_batch_grading_summary(
+        self,
+        assignment_results: List[Dict[str, Any]],
+        course: str = "CS 1400"
+    ) -> str:
+        """Generate summary report for batch grading results"""
+        if not self.is_enabled():
+            raise Exception("OpenAI service is not configured")
+        
+        # Compile batch statistics
+        total_submissions = len(assignment_results)
+        avg_score = sum(r.get('total_score', 0) for r in assignment_results) / total_submissions if total_submissions > 0 else 0
+        
+        # Common issues across submissions
+        all_feedback = []
+        for result in assignment_results:
+            feedback = result.get('final_justifications', {})
+            all_feedback.extend(feedback.values())
+        
+        feedback_summary = "\n".join(all_feedback[:10])  # Sample feedback
+        
+        prompt = f"""Generate a batch grading summary report for {course} assignment results.
+
+Total Submissions: {total_submissions}
+Average Score: {avg_score:.1f}
+
+Sample Feedback from Submissions:
+{feedback_summary}
+
+Create a summary that includes:
+1. Overall class performance analysis
+2. Common strengths observed across submissions
+3. Common areas for improvement
+4. Specific recommendations for future instruction
+5. Suggestions for follow-up activities or review topics
+
+Be constructive and focused on helping the instructor improve their teaching."""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an educational data analyst helping instructors understand class performance patterns."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                max_completion_tokens=700
+            )
+            
+            return response.choices[0].message.content.strip()
+            
+        except Exception as e:
+            raise Exception(f"Failed to generate batch summary: {str(e)}")
+    
+    def generate_assignment_rubric(
+        self,
+        assignment_prompt: str,
+        learning_objectives: List[str],
+        course_level: str = "introductory"
+    ) -> Dict[str, Any]:
+        """Generate a custom rubric for a specific assignment"""
+        if not self.is_enabled():
+            raise Exception("OpenAI service is not configured")
+        
+        objectives_text = "\n".join([f"- {obj}" for obj in learning_objectives])
+        
+        prompt = f"""Create a grading rubric for this CS assignment.
+
+Course Level: {course_level}
+Assignment Prompt:
+{assignment_prompt}
+
+Learning Objectives:
+{objectives_text}
+
+Generate a rubric with 4-6 criteria appropriate for this assignment. Each criterion should have:
+- Clear title and description
+- 4 performance levels (0-3)
+- Specific descriptors for each level
+
+Return ONLY valid JSON:
+{{
+  "name": "Assignment Name - Rubric",
+  "version": "1.0",
+  "scale": {{"min": 0, "max": 3, "labels": {{"0": "Poor", "1": "Fair", "2": "Good", "3": "Excellent"}}}},
+  "criteria": [
+    {{
+      "id": "CRIT1",
+      "code": "CRIT1", 
+      "title": "Criterion Title",
+      "category": "Category",
+      "description": "What this measures",
+      "levels": {{
+        "0": "Level 0 description",
+        "1": "Level 1 description", 
+        "2": "Level 2 description",
+        "3": "Level 3 description"
+      }}
+    }}
+  ]
+}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "You are an expert CS educator creating assessment rubrics. Generate comprehensive, fair rubrics."
+                    },
+                    {
+                        "role": "user",
+                        "content": prompt
+                    }
+                ],
+                max_completion_tokens=1200
+            )
+            
+            response_text = response.choices[0].message.content.strip()
+            start_idx = response_text.find('{')
+            end_idx = response_text.rfind('}') + 1
+            if start_idx != -1 and end_idx != -1:
+                json_text = response_text[start_idx:end_idx]
+                result = json.loads(json_text)
+                return result
+            else:
+                raise Exception("Could not parse JSON from AI response")
+                
+        except Exception as e:
+            raise Exception(f"Failed to generate assignment rubric: {str(e)}")
