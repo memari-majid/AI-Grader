@@ -7,8 +7,8 @@ This directory contains documentation for the AI-Grader research platform.
 - [RUBRIC_FORMAT.md](RUBRIC_FORMAT.md) - How to define/import rubrics (JSON schema)
 - [GUARDRAILS.md](GUARDRAILS.md) - Guardrails and fairness/bias mitigations
 
-## Technical Docs
-- [ARCHITECTURE.md](ARCHITECTURE.md) - System architecture and components
+-## Technical Docs
+- [technical_architecture.md](technical_architecture.md) - System architecture and components
 - [DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md) - Cloud/Docker/self-hosting options
 
 ## Legacy (from AI-STER)

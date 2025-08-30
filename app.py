@@ -2472,6 +2472,7 @@ Be as detailed as possible - these notes will be used to generate evidence-based
                 'evaluator_name': evaluator_name,
                 'evaluator_role': evaluator_role,
                 'rubric_type': rubric_type,
+                'rubric_meta': st.session_state.get('rubric_meta') if rubric_type == 'custom' else None,
                 'evaluated_items_count': len(items),  # Track how many items this role evaluated
                 'scores': st.session_state.scores,
                 'justifications': st.session_state.justifications,
@@ -2544,6 +2545,7 @@ Be as detailed as possible - these notes will be used to generate evidence-based
                 'evaluator_name': evaluator_name,
                 'evaluator_role': evaluator_role,
                 'rubric_type': rubric_type,
+                'rubric_meta': st.session_state.get('rubric_meta') if rubric_type == 'custom' else None,
                 'scores': st.session_state.scores,
                 'justifications': st.session_state.justifications,
                 'disposition_scores': st.session_state.disposition_scores,

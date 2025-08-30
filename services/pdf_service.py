@@ -169,21 +169,28 @@ class PDFService:
         elements = []
         
         # Title
-        title_text = f"{data.get('rubric_type', 'STER').replace('_', ' ').title()} Evaluation Report"
+        if data.get('rubric_type') == 'custom' and data.get('rubric_meta'):
+            title_text = f"Custom Rubric Evaluation Report"
+        else:
+            title_text = f"{data.get('rubric_type', 'STER').replace('_', ' ').title()} Evaluation Report"
         elements.append(Paragraph(title_text, self.styles['CustomTitle']))
         
         # Subtitle with student info
-        subtitle = f"Student Teacher: {data.get('student_name', 'N/A')}"
+        subtitle = f"Student: {data.get('student_name', 'N/A')}"
         elements.append(Paragraph(subtitle, self.styles['CustomSubtitle']))
         
         # Evaluation metadata table
         metadata = [
             ['Evaluation Date:', data.get('date', datetime.now().strftime('%Y-%m-%d'))],
             ['School/Site:', data.get('school', 'N/A')],
-            ['Subject/Grade:', data.get('subject', 'N/A')],
-            ['Supervisor:', data.get('evaluator_name', 'N/A')],
-            ['Evaluation Type:', 'Formative' if data.get('is_formative', True) else 'Summative']
+            ['Subject:', data.get('subject', 'N/A')],
+            ['Evaluator:', data.get('evaluator_name', 'N/A')],
+            ['Evaluation Type:', data.get('rubric_type', 'STER').replace('_', ' ').title()]
         ]
+        # Include rubric name/version for custom
+        if data.get('rubric_type') == 'custom' and data.get('rubric_meta'):
+            rm = data['rubric_meta']
+            metadata.append(['Rubric:', f"{rm.get('name','Custom')} (v{rm.get('version','1.0')})"])
         
         metadata_table = Table(metadata, colWidths=[2*inch, 4*inch])
         metadata_table.setStyle(TableStyle([
@@ -240,10 +247,10 @@ class PDFService:
         """Create the competency scores section"""
         elements = []
         
-        elements.append(Paragraph("Competency Evaluation Details", self.styles['SectionHeader']))
+        elements.append(Paragraph("Evaluation Details", self.styles['SectionHeader']))
         
         # Create competency table
-        table_data = [['Competency', 'Score', 'Justification']]
+        table_data = [['Criterion', 'Score', 'Feedback']]
         
         # Add each competency
         for item in data.get('competency_scores', []):
