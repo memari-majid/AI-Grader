@@ -21,6 +21,7 @@ from utils.storage import save_evaluation
 from components.chatbot import show_chatbot_sidebar, show_full_chat
 from components.auth import show_login_form, check_authentication, show_user_info
 from database.db_manager import db
+from styles.uvu_theme import apply_uvu_theme, create_uvu_header, create_uvu_footer
 
 # Page config
 st.set_page_config(
@@ -35,8 +36,12 @@ openai_service = OpenAIService()
 def main():
     """Main app - secure single page with integrated chatbot"""
     
+    # Apply UVU theme
+    apply_uvu_theme()
+    
     # Check authentication first
     if not check_authentication():
+        apply_uvu_theme()  # Apply theme to login page too
         show_login_form()
         return
     
@@ -44,14 +49,16 @@ def main():
     show_user_info()
     show_chatbot_sidebar()
     
-    # Header
-    col1, col2 = st.columns([3, 1])
-    with col1:
-        st.title("💻 CS AI Grader")
-        st.caption("Utah Valley University - Computer Science Department")
-        user = st.session_state.get('user', {})
-        st.caption(f"Welcome, {user.get('username', 'User')} ({user.get('role', 'user').title()})")
-    with col2:
+    # UVU-branded header
+    user = st.session_state.get('user', {})
+    create_uvu_header(
+        "CS AI Grader",
+        f"Welcome, {user.get('username', 'User')} ({user.get('role', 'user').title()}) | Computer Science Department"
+    )
+    
+    # Toggle chat button
+    col1, col2, col3 = st.columns([2, 1, 1])
+    with col3:
         if st.button("💬 Toggle Chat"):
             st.session_state.show_full_chat = not st.session_state.get('show_full_chat', False)
             st.rerun()
@@ -392,6 +399,9 @@ def show_results():
             if 'ai_feedback' in st.session_state:
                 del st.session_state.ai_feedback
             st.rerun()
+
+    # UVU Footer
+    create_uvu_footer()
 
 def save_grading_data(assignment_data, scores, justifications, ai_feedback):
     """Save grading data securely to database"""

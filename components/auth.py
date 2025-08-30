@@ -7,10 +7,11 @@ from database.db_manager import db
 
 
 def show_login_form():
-    """Show login form"""
+    """Show login form with UVU branding"""
     
-    st.title("🔐 CS AI Grader Login")
-    st.caption("Utah Valley University - Computer Science Department")
+    from styles.uvu_theme import create_uvu_header
+    
+    create_uvu_header("CS AI Grader", "Utah Valley University - Computer Science Department")
     
     tab1, tab2 = st.tabs(["🔑 Login", "👤 Register"])
     
