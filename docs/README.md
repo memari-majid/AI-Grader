@@ -3,7 +3,7 @@
 This directory contains documentation for the AI-Grader research platform.
 
 ## User & Research Docs
-- [RESEARCH_DESIGN.md](RESEARCH_DESIGN.md) - Reliability metrics, hypotheses, study protocols
+- [RESEARCH_PROTOCOL.md](RESEARCH_PROTOCOL.md) - Publishable protocol (hypotheses, design, analysis, ethics)
 - [RUBRIC_FORMAT.md](RUBRIC_FORMAT.md) - How to define/import rubrics (JSON schema)
 - [GUARDRAILS.md](GUARDRAILS.md) - Guardrails and fairness/bias mitigations
 
