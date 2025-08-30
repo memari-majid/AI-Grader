@@ -33,12 +33,38 @@ class DatabaseManager:
         with sqlite3.connect(self.db_path) as conn:
             conn.executescript(schema)
             conn.commit()
+            
+            # Check if admin user exists, create if not
+            conn.row_factory = sqlite3.Row
+            admin_exists = conn.execute(
+                "SELECT COUNT(*) as count FROM users WHERE username = 'admin'"
+            ).fetchone()['count']
+            
+            if admin_exists == 0:
+                self._create_default_admin(conn)
     
     def get_connection(self) -> sqlite3.Connection:
         """Get database connection with row factory"""
         conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         return conn
+    
+    def _create_default_admin(self, conn: sqlite3.Connection):
+        """Create default admin user (admin/admin)"""
+        # Generate salt and hash password
+        salt = secrets.token_hex(16)
+        password_hash = hashlib.pbkdf2_hmac('sha256', 'admin'.encode(), salt.encode(), 100000)
+        password_hash_hex = password_hash.hex()
+        
+        courses_json = json.dumps(['CS 1400', 'CS 1410', 'CS 2420'])
+        
+        conn.execute("""
+            INSERT INTO users (username, email, password_hash, salt, role, department, courses)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+        """, ('admin', 'admin@uvu.edu', password_hash_hex, salt, 'admin', 'Computer Science', courses_json))
+        
+        conn.commit()
+        print("✅ Created default admin user (admin/admin)")
     
     # User Management
     def create_user(self, username: str, email: str, password: str, role: str, 
