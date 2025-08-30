@@ -79,34 +79,30 @@ def show_chatbot_sidebar():
             format_func=lambda x: "Choose a suggestion..." if x == "" else x
         )
         
-        # Chat input
-        user_message = st.text_area(
-            "Ask AI Assistant:",
-            value=selected_suggestion if selected_suggestion else "",
-            placeholder="How can I improve this rubric?\nWhat are common Python mistakes?\nHelp me write feedback...",
-            height=80,
-            key="chat_input"
-        )
-        
-        col1, col2 = st.columns([2, 1])
-        with col1:
-            if st.button("💬 Send", use_container_width=True):
-                if user_message.strip():
-                    with st.spinner("🤖 AI thinking..."):
-                        success = send_chat_message(user_message, use_context, openai_service)
-                        if success:
-                            # Clear input by resetting key
-                            st.session_state.chat_input = ""
+        # Chat input - use form to handle input clearing properly
+        with st.form("chat_form", clear_on_submit=True):
+            user_message = st.text_area(
+                "Ask AI Assistant:",
+                value=selected_suggestion if selected_suggestion else "",
+                placeholder="How can I improve this rubric?\nWhat are common Python mistakes?\nHelp me write feedback...",
+                height=80
+            )
+            
+            submitted = st.form_submit_button("💬 Send", use_container_width=True)
+            if submitted and user_message.strip():
+                with st.spinner("🤖 AI thinking..."):
+                    success = send_chat_message(user_message, use_context, openai_service)
+                    if success:
                         st.rerun()
-                else:
-                    st.sidebar.error("Please enter a message")
+            elif submitted:
+                st.sidebar.error("Please enter a message")
         
-        with col2:
-            if st.button("🗑️ Clear", use_container_width=True):
-                st.session_state.chat_history = []
-                st.session_state.chat_context = {}
-                st.sidebar.success("Chat cleared!")
-                st.rerun()
+        # Clear button outside the form
+        if st.button("🗑️ Clear Chat", use_container_width=True):
+            st.session_state.chat_history = []
+            st.session_state.chat_context = {}
+            st.sidebar.success("Chat cleared!")
+            st.rerun()
     
     # Show full chat if requested
     if st.sidebar.button("💬 Full Chat"):
