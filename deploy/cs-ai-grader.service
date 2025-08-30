@@ -1,0 +1,19 @@
+[Unit]
+Description=CS AI Grader - UVU Computer Science Department
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+User=majid
+Group=majid
+WorkingDirectory=/home/majid/Downloads/AI-Grader
+Environment=PATH=/home/majid/Downloads/AI-Grader/venv/bin
+ExecStart=/home/majid/Downloads/AI-Grader/venv/bin/streamlit run app_simple.py --server.port 8501 --server.address 0.0.0.0
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

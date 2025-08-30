@@ -1,105 +1,112 @@
-# 💻 CS AI Grader: Research Platform for AI-Assisted Grading
+# 💻 CS AI Grader: UVU Computer Science Department
+
+Cost-effective AI-assisted grading platform for programming assignments, replacing individual ChatGPT subscriptions with centralized GPT-5-nano access.
 
 [![Streamlit](https://img.shields.io/badge/Streamlit-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white)](https://streamlit.io/)
 [![Python](https://img.shields.io/badge/Python-3776AB?style=for-the-badge&logo=python&logoColor=white)](https://python.org/)
 [![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)](https://openai.com/)
 
-A general-purpose grading research platform to study automated grading with AI using assignment context, rubrics, and human-in-the-loop feedback.
+## 🎯 Features
 
-## ⭐ Initial Feature Goals
-
-- General rubric ingestion (CSV/JSON/UI builder)
-- Assignment/prompt ingestion (text, PDF)
-- Evidence ingestion (student submission text; attachments roadmap)
-- AI scoring suggestions per criterion
-- Feedback generation aligned to rubric criteria
-- Human-in-the-loop revision and acceptance
-- Reliability controls and guardrails
-- Research exports and analytics
+- **AI-Assisted Grading** with rubric-aligned feedback
+- **Integrated Chatbot** with GPT-5-nano access
+- **Document Upload** for AI context (PDFs, code files)
+- **Automated Email Generation** for student feedback
+- **Plagiarism Detection** between submissions
+- **Batch Grading Analytics** for class performance
+- **Secure Authentication** with role-based access
+- **Research Data Collection** for publication
 
 ## 🛠 Technology Stack
 
 - Streamlit + Python 3.12+
-- OpenAI API (default model: gpt-5-nano for cost optimization, configurable via `OPENAI_MODEL`)
-- Local JSON storage (SQLite planned)
+- OpenAI API (GPT-5-nano for cost optimization)
+- SQLite database for secure data storage
+- Ngrok for external access
 
 ## 🚀 Quick Start
 
-### 1) Install
+### 1) Install Dependencies
 ```bash
 python -m venv venv
 source venv/bin/activate  # On Windows: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 2) Configure
+### 2) Configure Environment
 ```bash
 cp env.example .env
-# Add your OpenAI API key and optional model
+# Add your OpenAI API key
 ```
 
-### 3) Run
+### 3) Run Forever (Recommended)
 ```bash
-streamlit run app.py
-```
-Open http://localhost:8501 in your browser.
-
-## 📖 Documentation
-
-| Document | Description |
-|----------|-------------|
-| docs/RESEARCH_DESIGN.md | Reliability, study design, and protocols |
-| docs/RUBRIC_FORMAT.md | How to define/import rubrics |
-| docs/GUARDRAILS.md | Model guardrails and mitigation strategies |
-| docs/ARCHITECTURE.md | System architecture and components |
-| deploy/README.md | Ngrok deployment for pilots |
-
-## 🔧 Environment Variables
-
-```bash
-# Required
-OPENAI_API_KEY=your_openai_api_key_here
-
-# Optional
-OPENAI_MODEL=gpt-5-nano
+./run_forever.sh forever
 ```
 
-## 📊 Research Focus
+This starts the app with auto-restart monitoring at https://csaigrader.ngrok.app
 
-- Inter-rater reliability: AI vs TA/Professor
-- Delta analysis: human revisions vs AI suggestions
-- Feedback quality: rubric-aligned, specific, constructive
-
-## 🧩 Custom Rubrics (General AI Grader)
-
-- Use the "CS Programming (UVU)" type for Python code or the "Custom Rubric" type to upload a rubric JSON.
-- JSON schema: see `docs/RUBRIC_FORMAT.md` (criteria with ids, titles, and per-level descriptors).
-- The AI will generate criterion-level feedback and suggested scores based on the rubric, submission, and optional context.
-
-## 🚀 Easy Deployment
-
-Start the app with ngrok tunnel in one command:
-
+### Alternative: One-time Run
 ```bash
 ./start_app.sh
 ```
 
-This automatically:
-- Starts Streamlit on port 8501
-- Creates ngrok tunnel at https://csaigrader.ngrok.app
-- Uses GPT-5-nano for cost-effective department-wide usage
+### System Service (Production)
+```bash
+sudo ./deploy/install_services.sh
+```
 
-## 💰 Cost-Effective AI for UVU CS Department
+## 💰 Cost Benefits for UVU CS Department
 
-Instead of individual ChatGPT subscriptions for each professor/TA, this centralized app provides:
-- **Automated grading** with rubric-aligned feedback
-- **Student email generation** with personalized feedback
-- **Batch grading summaries** for class performance analysis
-- **Plagiarism detection** between submissions
-- **Custom rubric generation** for new assignments
-- **Improvement suggestions** tailored to student code
+**Instead of:** Individual ChatGPT Plus subscriptions ($20/month × faculty/TAs)
 
-All powered by GPT-5-nano to minimize API costs while serving the entire department.
+**Get:** Centralized AI platform with:
+- **Automated Grading** - Consistent rubric-aligned feedback
+- **Student Communication** - AI-generated emails and suggestions
+- **Plagiarism Detection** - Compare submissions automatically
+- **Class Analytics** - Batch performance summaries
+- **Custom Rubrics** - AI-generated for new assignments
+- **Integrated Chat** - GPT-5-nano access with document upload
+- **Research Data** - All interactions logged for publication
+
+## 🔐 Security Features
+
+- **Secure Authentication** - UVU email required, role-based access
+- **Data Encryption** - Student IDs hashed, sensitive data protected
+- **Audit Logging** - Complete action tracking
+- **Session Management** - Secure session handling with expiration
+- **Research Consent** - Explicit consent for data use
+
+## 🧪 Testing
+
+**Quick Test:**
+1. Go to https://csaigrader.ngrok.app
+2. Click "Demo Mode" or register with @uvu.edu email
+3. Click "Generate Test Assignment"
+4. Try all AI features
+
+**Synthetic Pipeline:**
+```bash
+python synthetic_eval.py --n 10
+```
+
+## 📊 Research Protocol
+
+See `docs/RESEARCH_PROTOCOL.md` for complete study design, hypotheses, and publication plan.
+
+## 🔧 Management Commands
+
+```bash
+./run_forever.sh status    # Check if running
+./run_forever.sh restart   # Restart services
+./run_forever.sh stop      # Stop services
+```
+
+## 📖 Documentation
+
+- [Research Protocol](docs/RESEARCH_PROTOCOL.md) - Study design and publication plan
+- [Rubric Format](docs/RUBRIC_FORMAT.md) - Custom rubric JSON schema
 
 ## License
-See LICENSE. 
+
+See LICENSE.

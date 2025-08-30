@@ -1,0 +1,18 @@
+[Unit]
+Description=Ngrok tunnel for CS AI Grader
+After=network.target cs-ai-grader.service
+Wants=network.target
+
+[Service]
+Type=simple
+User=majid
+Group=majid
+WorkingDirectory=/home/majid/Downloads/AI-Grader
+ExecStart=/usr/local/bin/ngrok http --url=csaigrader.ngrok.app 8501
+Restart=always
+RestartSec=15
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
