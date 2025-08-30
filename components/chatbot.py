@@ -183,7 +183,7 @@ def send_chat_message(message: str, use_context: bool, openai_service: OpenAISer
             model=openai_service.model,
             messages=messages,
             max_completion_tokens=500,
-            temperature=0.7  # GPT-5-mini supports temperature control
+            temperature=1  # Use default temperature for compatibility
         )
         
         ai_response = response.choices[0].message.content.strip()
