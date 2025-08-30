@@ -9,6 +9,7 @@ from typing import Dict, Any, Optional
 
 from data.rubric_loader import get_sample_cs_rubric, rubric_to_items, parse_rubric_json
 from data.cs_synthetic import get_sample_assignment, generate_cs_assignment_data
+from data.synthetic_rubric_generator import generate_assignment_package, create_synthetic_grading_session
 from services.code_analysis_service import analyze_python_code
 from services.openai_service import OpenAIService
 from utils.storage import save_evaluation
@@ -43,11 +44,11 @@ def show_assignment_grading_form():
     st.subheader("📋 Step 1: Assignment Context")
     
     # Option to use synthetic data
-    col1, col2 = st.columns([3, 1])
+    col1, col2, col3 = st.columns([2, 1, 1])
     with col1:
-        use_synthetic = st.checkbox("🧪 Use Synthetic Assignment Data", help="Load a sample CS 1400 assignment for testing")
+        use_synthetic = st.checkbox("🧪 Use Synthetic Assignment Data", help="Load a complete synthetic assignment package")
     with col2:
-        if use_synthetic and st.button("🎲 Generate Random Assignment"):
+        if use_synthetic and st.button("🎲 Random Assignment"):
             sample = get_sample_assignment()
             st.session_state.assignment_prompt = sample['assignment_prompt']
             st.session_state.code_text = sample['student_code']
@@ -59,6 +60,26 @@ def show_assignment_grading_form():
                 'difficulty': sample['difficulty']
             }
             st.success(f"✅ Loaded: {sample['assignment_name']}")
+            st.rerun()
+    with col3:
+        if use_synthetic and st.button("🎯 Complete Package"):
+            # Generate complete assignment package (problem + rubric + solution)
+            package = generate_assignment_package(difficulty="intermediate")
+            assignment = package["assignment"]
+            
+            st.session_state.assignment_prompt = assignment['prompt']
+            st.session_state.code_text = package['sample_solution']
+            st.session_state.extracted_info = {
+                'course': 'CS 1400',
+                'assignment_name': assignment['name'],
+                'grader_name': 'Test Grader',
+                'topics': assignment['topics'],
+                'difficulty': assignment['difficulty'],
+                'package_id': package['package_id']
+            }
+            # Store the generated rubric
+            st.session_state.synthetic_rubric = package['rubric']
+            st.success(f"✅ Generated complete package: {assignment['name']}")
             st.rerun()
     
     if use_synthetic and st.session_state.get('extracted_info'):
@@ -105,7 +126,13 @@ def show_assignment_grading_form():
     )
     
     custom_rubric = None
-    if rubric_choice == "Built-in CS Rubric":
+    
+    # Check if we have a synthetic rubric from complete package
+    if st.session_state.get('synthetic_rubric'):
+        custom_rubric = st.session_state.synthetic_rubric
+        st.success(f"✅ Using synthetic rubric: {custom_rubric.get('name')}")
+        st.caption("Generated automatically with the assignment package")
+    elif rubric_choice == "Built-in CS Rubric":
         custom_rubric = get_sample_cs_rubric()
         st.success("✅ Using built-in CS programming rubric")
     else:
