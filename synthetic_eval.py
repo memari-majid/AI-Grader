@@ -20,30 +20,27 @@ from services.openai_service import OpenAIService
 
 
 SYNTHETIC_SNIPPETS = [
-    """
-def add(a, b):
+    '''def add(a, b):
     """Return the sum of a and b."""
     return a + b
 
 def main():
     print(add(2, 3))
-""",
-    """
-def factorial(n):
+''',
+    '''def factorial(n):
     if n <= 1:
         return 1
     result = 1
     for i in range(2, n+1):
         result *= i
     return result
-""",
-    """
-class Greeter:
+''',
+    '''class Greeter:
     def __init__(self, name):
         self.name = name
     def greet(self):
         return f"Hello, {self.name}!"
-""",
+''',
 ]
 
 
