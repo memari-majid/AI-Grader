@@ -1,6 +1,6 @@
 """
 Integrated chatbot for CS AI Grader
-Provides direct GPT-5-nano access to professors/TAs with context awareness
+Provides direct GPT-5-mini access to professors/TAs with context awareness
 """
 
 import streamlit as st
@@ -16,7 +16,7 @@ def show_chatbot_sidebar():
     
     st.sidebar.markdown("---")
     st.sidebar.subheader("🤖 AI Assistant")
-    st.sidebar.caption("Chat with GPT-5-nano")
+    st.sidebar.caption("Chat with GPT-5-mini")
     
     # Initialize chat history
     if 'chat_history' not in st.session_state:
@@ -148,7 +148,7 @@ def send_chat_message(message: str, use_context: bool, openai_service: OpenAISer
     
     # Build system prompt
     system_prompt = """You are an AI assistant helping UVU Computer Science professors and TAs with grading and teaching tasks. 
-    You have access to GPT-5-nano and can help with:
+    You have access to GPT-5-mini and can help with:
     - Assignment grading and feedback
     - Rubric creation and improvement
     - Student communication
@@ -183,7 +183,7 @@ def send_chat_message(message: str, use_context: bool, openai_service: OpenAISer
             model=openai_service.model,
             messages=messages,
             max_completion_tokens=500,
-            temperature=0.7
+            temperature=0.7  # GPT-5-mini supports temperature control
         )
         
         ai_response = response.choices[0].message.content.strip()

@@ -26,8 +26,8 @@ class OpenAIService:
     def __init__(self):
         """Initialize OpenAI service"""
         self.client = None
-        # Use GPT-5-nano for cost-effective department-wide usage
-        self.model = os.getenv('OPENAI_MODEL', 'gpt-5-nano')
+        # Use GPT-5-mini for better JSON handling and temperature support
+        self.model = os.getenv('OPENAI_MODEL', 'gpt-5-mini')
         self._initialize_client()
     
     def _initialize_client(self):

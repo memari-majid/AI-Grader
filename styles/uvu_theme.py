@@ -296,7 +296,7 @@ def create_uvu_footer():
     footer_html = """
     <div class="uvu-footer">
         <strong>Utah Valley University - Computer Science Department</strong><br>
-        AI-Assisted Grading Platform | Powered by GPT-5-nano
+        AI-Assisted Grading Platform | Powered by GPT-5-mini
     </div>
     """
     
