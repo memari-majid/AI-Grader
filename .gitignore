@@ -1,0 +1,48 @@
+# Environment variables (sensitive information)
+.env
+*.env
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ai-ster-env/
+ENV/
+env.bak/
+venv.bak/
+
+# Streamlit
+streamlit.log
+.streamlit/
+
+# Data storage (will be recreated)
+data_storage/
+
+# Backup files
+*_backup.py
+*.backup
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Virtual environments (specific)
+ai-ster-env/
+
+# Private documentation (contains sensitive client information)
+docs/Meeting_Notes_AI-STER_PRIVATE.md
+*_PRIVATE.md
+*PRIVATE*
